@@ -37,20 +37,24 @@ class CuspHaloModel(object):
       Largest scale factor we are interested in. Default is 1.
   
   Methods:
+
+    model_m(M,a): 
+      Median cusp mass m at halo mass M and scale factor a.
     
-    median_A(M,D):
-      Median cusp coefficient A at halo mass M and linear growth factor D,
-      where D=1 at the time that the power spectrum is specified.
+    model_A(M,a):
+      Median cusp coefficient A at halo mass M and scale factor a.
+      
+    characteristic_m(a):
+      Characteristic cusp mass at scale factor a.
+      
+    characteristic_A(a):
+      Characteristic cusp coefficient at scale factor a.
     
-    median_m(M,D): 
-      Median cusp mass m at halo mass M and linear growth factor D, where
-      D=1 at the time that the power spectrum is specified.
+    collapse_a(M):
+      Estimated collapse scale factor for a halo of mass M.
       
-    scatter_A(A,s):
-      s-sigma scatter in the cusp coefficient.
-      
-    scatter_m(m,s):
-      s-sigma scatter in the cusp mass.
+    growth(a):
+      Linear growth function.
   
   '''
   
@@ -81,6 +85,10 @@ class CuspHaloModel(object):
     # prefactors for cusp-halo results
     self.A_pre = self.A_coef*(self.A_coef/(self.A_m_coef*self.m_coef**self.A_m_index))**(1./(2.*self.A_m_index-1.))
     self.m_pre = self.m_coef*(self.A_coef/(self.A_m_coef*self.m_coef**self.A_m_index))**(2./(2.*self.A_m_index-1.))
+    
+    # scale factor when \sigma_0=1
+    self.a0 = np.exp(np.interp(np.log(1./self.sigma0),self.__tab_lnD,self.__tab_lna,
+                             left=np.nan,right=np.nan))
     
   def __prepare_growth(self,growth,amin,amax):
     
@@ -124,6 +132,45 @@ class CuspHaloModel(object):
     '''
     return np.exp(np.interp(np.log(a),self.__tab_lna,self.__tab_lnD,
                              left=np.nan,right=np.nan))
+  
+  def A_from_m(self,m):
+    '''
+    
+    Typical cusp coefficient A, given cusp mass m.
+    
+    Parameters:
+      
+      m: float or array
+      
+    Returns:
+      
+      A: float or array
+    
+    '''
+    return self.fDM * (self.A_m_coef * self.rho**-1
+                       * self.sigma0**(2.25-1.5*self.A_m_index)
+                       * self.sigma2**(1.5*self.A_m_index-0.75)
+                       * (m/self.fDM)**self.A_m_index)
+
+  def m_from_A(self,A):
+    '''
+    
+    Typical cusp mass m, given cusp coefficient A.
+    
+    Parameters:
+      
+      A: float or array
+      
+    Returns:
+      
+      m: float or array
+    
+    '''
+    return self.fDM * (self.A_m_coef**(-1./self.A_m_index)
+                       * self.rho**(1./self.A_m_index)
+                       * self.sigma0**(1.5-2.25/self.A_m_index)
+                       * self.sigma2**(-1.5+0.75/self.A_m_index)
+                       * (A/self.fDM)**(1./self.A_m_index))
     
   def collapse_a(self,M,a=1.):
     '''
@@ -172,7 +219,7 @@ class CuspHaloModel(object):
         Characteristic cusp mass.
     
     '''
-    return self.m_pre * (
+    return self.fDM * self.m_pre * (
       self.rho**(3./(2.*self.A_m_index-1.))
       * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index))
       * self.growth(a_coll)**(3./(1.-2.*self.A_m_index))
@@ -195,7 +242,7 @@ class CuspHaloModel(object):
         Characteristic cusp coefficient.
     
     '''
-    return self.A_pre * (
+    return self.fDM * self.A_pre * (
       self.rho**((1.+self.A_m_index)/(2.*self.A_m_index-1.))
       * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index))
       * self.growth(a_coll)**(3./(2.-4.*self.A_m_index))
@@ -223,7 +270,7 @@ class CuspHaloModel(object):
         
     '''
     
-    return self.characteristic_m(self.collapse_a(M,a))
+    return self.fDM * self.characteristic_m(self.collapse_a(M,a))
   
   def model_A(self,M,a=1.):
     '''
@@ -246,5 +293,5 @@ class CuspHaloModel(object):
         
     '''
     
-    return self.characteristic_A(self.collapse_a(M,a))
+    return self.fDM * self.characteristic_A(self.collapse_a(M,a))
 

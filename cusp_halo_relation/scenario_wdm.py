@@ -97,6 +97,8 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     h, OmegaM, OmegaB: floats
       Cosmological parameters.
       Defaults are h=0.6774, OmegaM=0.3089, OmegaB=0.04886.
+      Note: we assume baryons contribute to the structure growth rate and halo
+      masses but not to cusp m and A.
       
     fs_model: 'VA23' or 'V05'
       Warm dark matter power spectrum model to use. Default is 'VA23'.
@@ -124,7 +126,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     rhoM = rhoCrit * OmegaM
     
     # warm DM
-    xhm = root_scalar(lambda x: free_streaming_T(x,fs_model,spin)-0.5,bracket=(1e-3,1e3),).root
+    xhm = np.real(root_scalar(lambda x: free_streaming_T(x,fs_model,spin)-0.5,bracket=(1e-3,1e3),).root)
     if (mX is None and Mhm is None) or (mX is not None and Mhm is not None):
       raise ValueError('must specify exactly one of mX and Mhm')
     if mX is not None:
@@ -135,7 +137,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
       khm = np.pi * (4*np.pi/3 * rhoM/Mhm)**(1./3)
       lfs = xhm / khm
       mX = np.real(root_scalar(lambda m: free_streaming_length(fs_model,m,OmegaX*h**2,h,spin)/lfs-1.,x0=1.,x1=10).root)
-    print(mX,xhm)
+    
     print('mX = %f keV'%float(mX))
     print('Mhm = %e Msol'%Mhm)
     
