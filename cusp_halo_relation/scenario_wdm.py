@@ -86,10 +86,19 @@ class CuspHaloModelWDM(main.CuspHaloModel):
   matter.
   
   Parameters:
+  
+    cutoff: string or tuple
+      Warm dark matter power spectrum model to use. Default is 'VA23'.
+      - 'VA23': Vogel & Abazajian (2023), arXiv:2210.10753
+      - 'V05': Viel et al. (2005), arXiv:astro-ph/0501562
+      Alternatively, pass a custom transfer function in the form (k/Mpc^-1, T),
+      where T(k) is the transfer function multiplying the Fourier-space density
+      contrast \delta(k).
     
     mX: float
-      Dark matter particle mass in keV. Either mX or Mhm must be specified, but
-      not both.
+      Dark matter particle mass in keV. Either mX or Mhm may be specified, but
+      not both. Alternatively, if a custom transfer function is used above,
+      then neither mX nor Mhm should be specified.
     
     Mhm: float
       Half-mode mass scale.
@@ -99,11 +108,6 @@ class CuspHaloModelWDM(main.CuspHaloModel):
       Defaults are h=0.6774, OmegaM=0.3089, OmegaB=0.04886.
       Note: we assume baryons contribute to the structure growth rate and halo
       masses but not to cusp m and A.
-      
-    fs_model: 'VA23' or 'V05'
-      Warm dark matter power spectrum model to use. Default is 'VA23'.
-      - 'VA23': Vogel & Abazajian (2023), arXiv:2210.10753
-      - 'V05': Viel et al. (2005), arXiv:astro-ph/0501562
       
     spin: 1/2 or 3/2
       Dark matter spin, only relevant if transfer=='VA23'. Default is 1/2.
@@ -118,7 +122,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
   
   '''
   
-  def __init__(self,mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,fs_model='VA23',spin=0.5):
+  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5):
     
     # cosmology
     OmegaX = OmegaM - OmegaB
@@ -126,25 +130,37 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     rhoM = rhoCrit * OmegaM
     
     # warm DM
-    xhm = np.real(root_scalar(lambda x: free_streaming_T(x,fs_model,spin)-0.5,bracket=(1e-3,1e3),).root)
-    if (mX is None and Mhm is None) or (mX is not None and Mhm is not None):
-      raise ValueError('must specify exactly one of mX and Mhm')
-    if mX is not None:
-      lfs = free_streaming_length(fs_model,mX,OmegaX*h**2,h,spin)
-      khm = xhm / lfs
-      Mhm = 4*np.pi/3 * rhoM * (np.pi/khm)**3
-    if Mhm is not None: # = 4*np.pi/3 * rhoM * (lhm/2)**3
-      khm = np.pi * (4*np.pi/3 * rhoM/Mhm)**(1./3)
-      lfs = xhm / khm
-      mX = np.real(root_scalar(lambda m: free_streaming_length(fs_model,m,OmegaX*h**2,h,spin)/lfs-1.,x0=1.,x1=10).root)
+    if isinstance(cutoff,str):
+      xhm = np.real(root_scalar(lambda x: free_streaming_T(x,cutoff,spin)-0.5,bracket=(1e-3,1e3),).root)
+      if (mX is None and Mhm is None) or (mX is not None and Mhm is not None):
+        raise ValueError('must specify exactly one of mX and Mhm')
+      if mX is not None:
+        lfs = free_streaming_length(cutoff,mX,OmegaX*h**2,h,spin)
+        khm = xhm / lfs
+      if Mhm is not None: # = 4*np.pi/3 * rhoM * (lhm/2)**3
+        khm = np.pi * (4*np.pi/3 * rhoM/Mhm)**(1./3)
+        lfs = xhm / khm
+        mX = np.real(root_scalar(lambda m: free_streaming_length(cutoff,m,OmegaX*h**2,h,spin)/lfs-1.,x0=1.,x1=10).root)
+      print('Using model %s with mX = %f keV'%(cutoff,float(mX)))
+      T = lambda k: free_streaming_T(lfs*k,cutoff,spin)
+    else:
+      if not (mX is None and Mhm is None):
+        raise ValueError('if custom T(k) is passed, neither mX nor Mhm should be')
+      cut_k, cut_T = cutoff
+      cut_sort = np.argsort(cut_k)
+      cut_k, cut_T = cut_k[cut_sort], cut_T[cut_sort]
+      cut_ihm = np.where(cut_T<0.5)[0][0]
+      khm = np.exp(np.interp(0.5,cut_T[cut_ihm:cut_ihm-2:-1],np.log(cut_k[cut_ihm:cut_ihm-2:-1]),left=np.nan,right=np.nan))
+      T = lambda k: np.interp(np.log(k),np.log(cut_k),cut_T,left=1.,right=0.)
     
-    print('mX = %f keV'%float(mX))
-    print('Mhm = %e Msol'%Mhm)
+    self.khm = khm
+    self.Mhm = 4*np.pi/3 * rhoM * (np.pi/khm)**3
+    print('khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
     
     # load power spectrum and apply transfer function
-    k = np.geomspace(1e-5,1e3/lfs,1000)
-    T = free_streaming_T(lfs*k,fs_model,spin)
-    P = perturbations.load_power(k,'m',h,OmegaM,0.) * T**2
+    k = np.geomspace(1e-5,1e3*khm,1000)
+    #T = free_streaming_T(lfs*k,cutoff,spin)
+    P = perturbations.load_power(k,'m',h,OmegaM,0.) * T(k)**2
     
     # initialize parent
     super().__init__(k,P,growth=lambda a: perturbations.growth(a,OmegaM,0.),
