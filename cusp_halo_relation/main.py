@@ -64,6 +64,7 @@ class CuspHaloModel(object):
     self.sigma0 = sigmaj(0,k,P) # evolves as D
     self.sigma1 = sigmaj(1,k,P) # evolves as D/a
     self.sigma2 = sigmaj(2,k,P) # evolves as D/a^2
+    self.gamma = self.sigma1**2/(self.sigma0*self.sigma2)
     
     # record the density parameters
     self.rho = rho # evolves as a^-3
@@ -71,11 +72,11 @@ class CuspHaloModel(object):
     
     # parameters of the cusp-peak relation
     self.A_coef = 24.
-    self.m_coef = 7.3
+    self.m_coef = 7.3364
     
     # parameters of the cusp-halo relation
-    self.A_m_index = 2.
-    self.A_m_coef  = 0.7
+    self.A_m_index = 1.9
+    self.A_m_coef  = 0.8
     self.massfac_fun = lambda sigma0: np.exp(-5./sigma0)
     
     # set up the growth function
@@ -95,6 +96,7 @@ class CuspHaloModel(object):
     # tabulate in intervals of about 5% in a
     tab_N = 1+int(np.round(np.log(amax/amin)/np.log(1.05)))
     self.__tab_a = np.geomspace(amin,amax,tab_N)
+    self.__tab_lna = np.log(self.__tab_a)
     if callable(growth):
       self.__tab_D = growth(self.__tab_a) / growth(1.)
     else:
@@ -108,11 +110,10 @@ class CuspHaloModel(object):
       )
     
     self.__tab_lnF = np.log(self.__tab_F)
-    self.__tab_lna = np.log(self.__tab_a)
   
   def mass_factor(self,a):
     
-    return self.massfac_fun(a*self.sigma0)
+    return self.massfac_fun(self.growth(a)*self.sigma0)
     
   def growth(self,a):
     '''
