@@ -77,24 +77,26 @@ class CuspHaloModel(object):
     # parameters of the cusp-halo relation
     self.A_m_index = 1.9
     self.A_m_coef  = 0.8
-    self.massfac_fun = lambda sigma0: np.exp(-5./sigma0)
+    self.mass_growth_fun = lambda sigma0: np.exp(-4.5/sigma0)
     
     # set up the growth function
     amin = 0.1/self.sigma0 # this should be long before any peaks collapse
     self.__prepare_growth(growth,amin,amax)
     
+    # scale factor when \sigma_0=1
+    self.a0 = np.exp(np.interp(np.log(1./self.sigma0),self.__tab_lnD,self.__tab_lna,left=np.nan,right=np.nan))
+    
     # prefactors for cusp-halo results
     self.A_pre = self.A_coef*(self.A_coef/(self.A_m_coef*self.m_coef**self.A_m_index))**(1./(2.*self.A_m_index-1.))
     self.m_pre = self.m_coef*(self.A_coef/(self.A_m_coef*self.m_coef**self.A_m_index))**(2./(2.*self.A_m_index-1.))
     
-    # scale factor when \sigma_0=1
-    self.a0 = np.exp(np.interp(np.log(1./self.sigma0),self.__tab_lnD,self.__tab_lna,
-                             left=np.nan,right=np.nan))
+    # set up interpolation table for cusp-halo model
+    self.__prepare_model(growth,amin,amax)
     
   def __prepare_growth(self,growth,amin,amax):
     
-    # tabulate in intervals of about 5% in a
-    tab_N = 1+int(np.round(np.log(amax/amin)/np.log(1.05)))
+    # tabulate in intervals of about 1% in a (this is overkill)
+    tab_N = 1+int(np.round(np.log(amax/amin)/np.log(1.01)))
     self.__tab_a = np.geomspace(amin,amax,tab_N)
     self.__tab_lna = np.log(self.__tab_a)
     if callable(growth):
@@ -102,18 +104,30 @@ class CuspHaloModel(object):
     else:
       self.__tab_D = self.__tab_a**growth
     self.__tab_lnD = np.log(self.__tab_D)
+  
+  def __prepare_model(self,growth,amin,amax):
     
-    self.__tab_F = (
-      self.__tab_a**(-3.+9./(2.*self.A_m_index-1.))
-      * self.__tab_D**(1.5-(9.-6.*self.A_m_index)/(2.-4.*self.A_m_index))
-      * self.mass_factor(self.__tab_a)
-      )
-    
+    self.__tab_F = self.__tab_D**(3./(2*self.A_m_index-1.)) * self.mass_growth(self.__tab_a)
     self.__tab_lnF = np.log(self.__tab_F)
   
-  def mass_factor(self,a):
+  def mass_growth(self,a):
+    '''
     
-    return self.massfac_fun(self.growth(a)*self.sigma0)
+    Evaluate the mass growth factor.
+    
+    Parameters:
+      
+      a: float or array
+        The cosmic expansion factor.
+        
+    Returns:
+      
+      M(a): float or array
+    
+    '''
+    
+    #return self.mass_growth_fun(a/self.a0)
+    return self.mass_growth_fun(self.growth(a)*self.sigma0)
     
   def growth(self,a):
     '''
@@ -128,11 +142,9 @@ class CuspHaloModel(object):
     Returns:
       
       D(a): float or array
-        The linear growth function.
     
     '''
-    return np.exp(np.interp(np.log(a),self.__tab_lna,self.__tab_lnD,
-                             left=np.nan,right=np.nan))
+    return np.exp(np.interp(np.log(a),self.__tab_lna,self.__tab_lnD,left=np.nan,right=np.nan))
   
   def A_from_m(self,m):
     '''
@@ -148,10 +160,7 @@ class CuspHaloModel(object):
       A: float or array
     
     '''
-    return self.fDM * (self.A_m_coef * self.rho**-1
-                       * self.sigma0**(2.25-1.5*self.A_m_index)
-                       * self.sigma2**(1.5*self.A_m_index-0.75)
-                       * (m/self.fDM)**self.A_m_index)
+    return self.fDM * self.A_m_coef * self.rho**(1.-self.A_m_index) * self.sigma0**(2.25-1.5*self.A_m_index) * self.sigma2**(1.5*self.A_m_index-0.75) * (m/self.fDM)**self.A_m_index
 
   def m_from_A(self,A):
     '''
@@ -167,12 +176,8 @@ class CuspHaloModel(object):
       m: float or array
     
     '''
-    return self.fDM * (self.A_m_coef**(-1./self.A_m_index)
-                       * self.rho**(1./self.A_m_index)
-                       * self.sigma0**(1.5-2.25/self.A_m_index)
-                       * self.sigma2**(-1.5+0.75/self.A_m_index)
-                       * (A/self.fDM)**(1./self.A_m_index))
-    
+    return self.fDM * self.A_m_coef**(-1./self.A_m_index) * self.rho**(1.-1./self.A_m_index) * self.sigma0**(1.5-2.25/self.A_m_index) * self.sigma2**(-1.5+0.75/self.A_m_index) * (A/self.fDM)**(1./self.A_m_index)
+
   def collapse_a(self,M,a=1.):
     '''
     
@@ -193,11 +198,7 @@ class CuspHaloModel(object):
         Scale factor at which the central cusp formed.
     
     '''
-    F = (
-      self.m_pre * self.rho**(3./(2*self.A_m_index-1.))
-      * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index))
-      * self.mass_factor(a)
-      ) / (M * self.sigma2**1.5)
+    F = self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.mass_growth(a) / (M * self.sigma2**1.5)
     
     a_out = np.exp(np.interp(np.log(F),self.__tab_lnF,self.__tab_lna,
                              left=-np.inf,right=np.inf))
@@ -220,12 +221,7 @@ class CuspHaloModel(object):
         Characteristic cusp mass.
     
     '''
-    return self.fDM * self.m_pre * (
-      self.rho**(3./(2.*self.A_m_index-1.))
-      * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index))
-      * self.growth(a_coll)**(3./(1.-2.*self.A_m_index))
-      * a_coll**(3.+9./(1.-2.*self.A_m_index))
-      ) / self.sigma2**1.5
+    return self.fDM * self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.growth(a_coll)**(3./(1.-2.*self.A_m_index)) / self.sigma2**1.5
   
   def characteristic_A(self,a_coll):
     '''
@@ -243,12 +239,7 @@ class CuspHaloModel(object):
         Characteristic cusp coefficient.
     
     '''
-    return self.fDM * self.A_pre * (
-      self.rho**((1.+self.A_m_index)/(2.*self.A_m_index-1.))
-      * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index))
-      * self.growth(a_coll)**(3./(2.-4.*self.A_m_index))
-      * a_coll**(9./(2.-4.*self.A_m_index))
-      ) / self.sigma2**0.75
+    return self.fDM * self.A_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index)) * self.growth(a_coll)**(3./(2.-4.*self.A_m_index)) / a_coll**1.5 / self.sigma2**0.75
   
   def model_m(self,M,a=1.):
     '''
