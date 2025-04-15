@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.integrate import simpson
+from . import concentration
 
 # moments of the power spectrum
 def sigmaj2(j,k,P):
@@ -37,6 +38,9 @@ class CuspHaloModel(object):
       Largest scale factor we are interested in. Default is 1.
   
   Methods:
+    
+    characteristic_c(a):
+      Estimated halo concentration for small halos at scale factor a.
 
     model_m(M,a): 
       Median cusp mass m at halo mass M and scale factor a.
@@ -45,13 +49,13 @@ class CuspHaloModel(object):
       Median cusp coefficient A at halo mass M and scale factor a.
       
     characteristic_m(a):
-      Characteristic cusp mass at scale factor a.
+      Characteristic cusp mass for young cusps at scale factor a.
       
     characteristic_A(a):
-      Characteristic cusp coefficient at scale factor a.
+      Characteristic cusp coefficient for young cusps at scale factor a.
     
     collapse_a(M):
-      Estimated collapse scale factor for a halo of mass M.
+      Estimated scale factor of cusp formation for a halo of mass M.
       
     growth(a):
       Linear growth function.
@@ -59,6 +63,10 @@ class CuspHaloModel(object):
   '''
   
   def __init__(self,k,P,growth=1.,rho=1.,fDM=1.,amax=1.):
+    
+    # record the power spectrum
+    self.k = k
+    self.P = P
     
     # evaluate the characteristic scales
     self.sigma0 = sigmaj(0,k,P) # evolves as D
@@ -78,6 +86,9 @@ class CuspHaloModel(object):
     self.A_m_index = 1.9
     self.A_m_coef  = 0.8
     self.mass_growth_fun = lambda sigma0: np.exp(-4.5/sigma0)
+    
+    # parameters of the concentration model
+    self.mass_growth_param = 4.5
     
     # set up the growth function
     amin = 0.1/self.sigma0 # this should be long before any peaks collapse
@@ -145,6 +156,22 @@ class CuspHaloModel(object):
     
     '''
     return np.exp(np.interp(np.log(a),self.__tab_lna,self.__tab_lnD,left=np.nan,right=np.nan))
+    
+  def inverse_growth(self,D):
+    '''
+    
+    Evaluate the inverse tabulated growth function.
+    
+    Parameters:
+      
+      D(a): float or array
+        
+    Returns:
+      
+      a: float or array
+    
+    '''
+    return np.exp(np.interp(np.log(D),self.__tab_lnD,self.__tab_lna,left=np.nan,right=np.nan))
   
   def A_from_m(self,m):
     '''
@@ -200,8 +227,7 @@ class CuspHaloModel(object):
     '''
     F = self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.mass_growth(a) / (M * self.sigma2**1.5)
     
-    a_out = np.exp(np.interp(np.log(F),self.__tab_lnF,self.__tab_lna,
-                             left=-np.inf,right=np.inf))
+    a_out = np.exp(np.interp(np.log(F),self.__tab_lnF,self.__tab_lna,left=-np.inf,right=np.inf))
     
     return np.where(a_out<=a,a_out,np.nan)
   
@@ -287,3 +313,19 @@ class CuspHaloModel(object):
     
     return self.fDM * self.characteristic_A(self.collapse_a(M,a))
 
+  def characteristic_c(self,a):
+    '''
+    
+    Estimate concentration parameter c at scale factor a for halos close to the
+    cutoff scale.
+    
+    Parameters:
+      
+      a: float or array
+    
+    Returns:
+      
+      c: float or array
+    
+    '''
+    return concentration.characteristic_c(self.growth(a)*self.sigma0,self.mass_growth_param)
