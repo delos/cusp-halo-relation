@@ -138,7 +138,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     
     # warm DM
     if isinstance(cutoff,str):
-      xhm = np.real(root_scalar(lambda x: free_streaming_T(x,cutoff,spin)-0.5,bracket=(1e-3,1e3),).root)
+      xhm = np.exp(root_scalar(lambda logx: free_streaming_T(np.exp(logx),cutoff,spin)-0.5,bracket=(-7.,7.),).root)
       if (mX is None and Mhm is None) or (mX is not None and Mhm is not None):
         raise ValueError('must specify exactly one of mX and Mhm')
       if mX is not None:
@@ -147,8 +147,8 @@ class CuspHaloModelWDM(main.CuspHaloModel):
       if Mhm is not None: # = 4*np.pi/3 * rhoM * (lhm/2)**3
         khm = np.pi * (4*np.pi/3 * rhoM/Mhm)**(1./3)
         lfs = xhm / khm
-        mX = np.real(root_scalar(lambda m: free_streaming_length(cutoff,m,OmegaX*h**2,h,spin)/lfs-1.,x0=1.,x1=10).root)
-      print('Using model %s with mX = %f keV'%(cutoff,float(mX)))
+        mX = np.exp(root_scalar(lambda logm: free_streaming_length(cutoff,np.exp(logm),OmegaX*h**2,h,spin)/lfs-1.,x0=0.,x1=1.).root)
+      print('Using model %s with mX = %f keV'%(cutoff,mX))
       T = lambda k: free_streaming_T(lfs*k,cutoff,spin)
     else:
       if not (mX is None and Mhm is None):

@@ -102,7 +102,7 @@ class CuspHaloModel(object):
     self.m_pre = self.m_coef*(self.A_coef/(self.A_m_coef*self.m_coef**self.A_m_index))**(2./(2.*self.A_m_index-1.))
     
     # set up interpolation table for cusp-halo model
-    self.__prepare_model(growth,amin,amax)
+    self.__prepare_cusps(growth,amin,amax)
     
   def __prepare_growth(self,growth,amin,amax):
     
@@ -116,7 +116,7 @@ class CuspHaloModel(object):
       self.__tab_D = self.__tab_a**growth
     self.__tab_lnD = np.log(self.__tab_D)
   
-  def __prepare_model(self,growth,amin,amax):
+  def __prepare_cusps(self,growth,amin,amax):
     
     self.__tab_F = self.__tab_D**(3./(2*self.A_m_index-1.)) * self.mass_growth(self.__tab_a)
     self.__tab_lnF = np.log(self.__tab_F)
