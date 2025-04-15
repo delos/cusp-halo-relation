@@ -121,11 +121,14 @@ class CuspHaloModelWDM(main.CuspHaloModel):
   
   Methods:
     
-    m(M,z):
+    m_at_z(M,z):
       Cusp mass m, given halo mass M and redshift z.
     
-    A(M,D): 
+    A_at_z(M,z): 
       Cusp coefficient A, given halo mass M and redshift z.
+      
+    c_at_z(z):
+      Typical concentration parameter for a small halo at redshift z.
   
   '''
   
@@ -159,7 +162,6 @@ class CuspHaloModelWDM(main.CuspHaloModel):
       cut_ihm = np.where(cut_T<0.5)[0][0]
       khm = np.exp(np.interp(0.5,cut_T[cut_ihm:cut_ihm-2:-1],np.log(cut_k[cut_ihm:cut_ihm-2:-1]),left=np.nan,right=np.nan))
       T = lambda k: np.interp(np.log(k),np.log(cut_k),cut_T,left=1.,right=0.)
-    
     self.khm = khm
     self.Mhm = 4*np.pi/3 * rhoM * (np.pi/khm)**3
     print('khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
@@ -172,42 +174,14 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     super().__init__(k,P,growth=lambda a: perturbations.growth(a,OmegaM=OmegaM,fb=0.),
                      rho=rhoM,fDM=OmegaX/OmegaM,amax=1.)
     
-  def m_at_z(self,M,z=0.):
-    '''
-    
-    Evaluate the predicted cusp mass m for a halo of mass M at redshift z.
-    
-    Parameters:
-      
-      M: float or array
-      
-      z: float or array
-        Redshift, default is z=0.
-    
-    Returns:
-      
-      m: float or array
-        
-    '''
-    
-    return self.model_m(M,1./(1.+z))
+  def m_at_z(self,M,z):
+    '''Predicted cusp mass m for a halo of mass M at redshift z.'''
+    return self.m(M,1./(1.+z))
   
-  def A_at_z(self,M,z=0.):
-    '''
-    
-    Evaluate the predicted cusp A for a halo of mass M at redshift z.
-    
-    Parameters:
-      
-      M: float or array
-      
-      a: float or array
-        Redshift, default is z=0.
-    
-    Returns:
-      
-      A: float or array
-        
-    '''
-    
-    return self.model_A(M,1./(1.+z))
+  def A_at_z(self,M,z):
+    '''Predicted cusp A for a halo of mass M at redshift z.'''
+    return self.A(M,1./(1.+z))
+  
+  def c_at_z(self,z):
+    '''Estimated typical concentration parameter of small halos at redshift z.'''
+    return self.characteristic_c(1./(1.+z))

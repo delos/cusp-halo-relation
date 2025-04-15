@@ -4,11 +4,7 @@ from scipy.special import hyp2f1
 from scipy.integrate import simpson
 
 def W(x):
-  '''
-  
-  Top-hat window function in Fourier space.
-  
-  '''
+  '''Top-hat window function in Fourier space.'''
   return np.piecewise(x,[x<=0.16],[lambda x: 1 - x**2/10. + x**4/280. - x**6/15120. + x**8/1330560. - x**10/172972800.,lambda x: 3/x**3 * (np.sin(x)-x*np.cos(x))])
 
 def growth(a,OmegaM,fb):

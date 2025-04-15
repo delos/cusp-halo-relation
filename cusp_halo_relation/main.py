@@ -4,9 +4,11 @@ from . import concentration
 
 # moments of the power spectrum
 def sigmaj2(j,k,P):
+  '''Evaluate \sigma_j^2 given tabulated power spectrum P(k)'''
   integrand = P*k**(2*j)
   return simpson(integrand,x=np.log(k),axis=0)
 def sigmaj(j,k,P):
+  '''Evaluate \sigma_j given tabulated power spectrum P(k)'''
   return np.sqrt(sigmaj2(j,k,P))
 
 class CuspHaloModel(object):
@@ -39,15 +41,15 @@ class CuspHaloModel(object):
   
   Methods:
     
+    m(M,a): 
+      Median cusp mass m at halo mass M and scale factor a.
+    
+    A(M,a):
+      Median cusp coefficient A at halo mass M and scale factor a.
+      
     characteristic_c(a):
       Estimated halo concentration for small halos at scale factor a.
 
-    model_m(M,a): 
-      Median cusp mass m at halo mass M and scale factor a.
-    
-    model_A(M,a):
-      Median cusp coefficient A at halo mass M and scale factor a.
-      
     characteristic_m(a):
       Characteristic cusp mass for young cusps at scale factor a.
       
@@ -122,210 +124,65 @@ class CuspHaloModel(object):
     self.__tab_lnF = np.log(self.__tab_F)
   
   def mass_growth(self,a):
-    '''
-    
-    Evaluate the mass growth factor.
-    
-    Parameters:
-      
-      a: float or array
-        The cosmic expansion factor.
-        
-    Returns:
-      
-      M(a): float or array
-    
-    '''
-    
-    #return self.mass_growth_fun(a/self.a0)
+    '''Evaluate the mass growth factor \chi(a) at scale factor a.'''
     return self.mass_growth_fun(self.growth(a)*self.sigma0)
     
   def growth(self,a):
-    '''
-    
-    Evaluate the tabulated growth function.
-    
-    Parameters:
-      
-      a: float or array
-        The cosmic expansion factor.
-        
-    Returns:
-      
-      D(a): float or array
-    
-    '''
+    '''Evaluate the growth function D(a) at scale factor a.'''
     return np.exp(np.interp(np.log(a),self.__tab_lna,self.__tab_lnD,left=np.nan,right=np.nan))
     
   def inverse_growth(self,D):
-    '''
-    
-    Evaluate the inverse tabulated growth function.
-    
-    Parameters:
-      
-      D(a): float or array
-        
-    Returns:
-      
-      a: float or array
-    
-    '''
+    '''Evaluate the scale factor a given the growth function D(a).'''
     return np.exp(np.interp(np.log(D),self.__tab_lnD,self.__tab_lna,left=np.nan,right=np.nan))
   
   def A_from_m(self,m):
-    '''
-    
-    Typical cusp coefficient A, given cusp mass m.
-    
-    Parameters:
-      
-      m: float or array
-      
-    Returns:
-      
-      A: float or array
-    
-    '''
+    '''Typical cusp coefficient A, given cusp mass m.'''
     return self.fDM * self.A_m_coef * self.rho**(1.-self.A_m_index) * self.sigma0**(2.25-1.5*self.A_m_index) * self.sigma2**(1.5*self.A_m_index-0.75) * (m/self.fDM)**self.A_m_index
 
   def m_from_A(self,A):
-    '''
-    
-    Typical cusp mass m, given cusp coefficient A.
-    
-    Parameters:
-      
-      A: float or array
-      
-    Returns:
-      
-      m: float or array
-    
-    '''
+    '''Typical cusp mass m, given cusp coefficient A.'''
     return self.fDM * self.A_m_coef**(-1./self.A_m_index) * self.rho**(1.-1./self.A_m_index) * self.sigma0**(1.5-2.25/self.A_m_index) * self.sigma2**(-1.5+0.75/self.A_m_index) * (A/self.fDM)**(1./self.A_m_index)
 
-  def collapse_a(self,M,a=1.):
+  def collapse_a(self,M,a):
     '''
-    
-    Evaluate the collapse time for the central cusp of a halo of mass M at the
-    scale factor a.
-    
-    Parameters:
-      
-      M: float or array
-        The halo mass.
-      
-      a: float or array
-        Scale factor at which we are considering the halo. Default is a=1.
-        
-    Returns:
-      
-      a_coll: float or array
-        Scale factor at which the central cusp formed.
-    
+    Estimate a cusp's formation scale factor a_coll, given that it is the
+    central cusp of a halo of mass M at the scale factor a.
     '''
     F = self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.mass_growth(a) / (M * self.sigma2**1.5)
-    
     a_out = np.exp(np.interp(np.log(F),self.__tab_lnF,self.__tab_lna,left=-np.inf,right=np.inf))
-    
     return np.where(a_out<=a,a_out,np.nan)
   
   def characteristic_m(self,a_coll):
     '''
-    
-    Evaluate the characteristic cusp mass m given the collapse time.
-    
-    Parameters:
-      
-      a_coll: float or array
-        The collapse scale factor.
-        
-    Returns:
-      
-      m: float or array
-        Characteristic cusp mass.
-    
+    Evaluate the characteristic cusp mass m given the formation scale factor
+    a_coll.
     '''
     return self.fDM * self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.growth(a_coll)**(3./(1.-2.*self.A_m_index)) / self.sigma2**1.5
   
   def characteristic_A(self,a_coll):
     '''
-    
-    Evaluate the characteristic cusp coefficient A given the collapse time.
-    
-    Parameters:
-      
-      a_coll: float or array
-        The collapse scale factor.
-        
-    Returns:
-      
-      A: float or array
-        Characteristic cusp coefficient.
-    
+    Evaluate the characteristic cusp coefficient A given the formation scale
+    factor a_coll.
     '''
     return self.fDM * self.A_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index)) * self.growth(a_coll)**(3./(2.-4.*self.A_m_index)) / a_coll**1.5 / self.sigma2**0.75
   
-  def model_m(self,M,a=1.):
+  def m(self,M,a):
     '''
-    
     Evaluate the predicted cusp mass m for a halo of mass M at the scale factor
     a.
-    
-    Parameters:
-      
-      M: float or array
-        The halo mass.
-      
-      a: float or array
-        Scale factor at which we are considering the halo. Default is a=1.
-    
-    Returns:
-      
-      m: float or array
-        Characteristic cusp mass.
-        
     '''
-    
     return self.fDM * self.characteristic_m(self.collapse_a(M,a))
   
-  def model_A(self,M,a=1.):
+  def A(self,M,a):
     '''
-    
     Evaluate the predicted cusp coefficient A for a halo of mass M at the scale
     factor a.
-    
-    Parameters:
-      
-      M: float or array
-        The halo mass.
-      
-      a: float or array
-        Scale factor at which we are considering the halo. Default is a=1.
-    
-    Returns:
-      
-      A: float or array
-        Characteristic cusp coefficient.
-        
     '''
-    
     return self.fDM * self.characteristic_A(self.collapse_a(M,a))
 
   def characteristic_c(self,a):
     '''
-    
-    Estimate concentration parameter c at scale factor a for halos close to the
-    cutoff scale.
-    
-    Parameters:
-      
-      a: float or array
-    
-    Returns:
-      
-      c: float or array
-    
+    Estimate the concentration parameter c at scale factor a for halos close to
+    the cutoff scale.
     '''
     return concentration.characteristic_c(self.growth(a)*self.sigma0,self.mass_growth_param)
