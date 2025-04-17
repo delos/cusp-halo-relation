@@ -49,6 +49,10 @@ def rs_from_r2(r2,rhos,A):
   f = (8 + 6*z*(24*z + np.sqrt(72 + 564*z**2 + 6*z**4)))**(1./3)
   return (4 + f*(2 + f) - 6*z**2)/(6.*f) * r2
   
+def R_from_M(M,rho_vir):
+  '''Virial radius R given halo mass M and virial density rho_vir.'''
+  return (3*M/(4*np.pi*rho_vir))**(1./3)
+  
 def __rhos_from_c_NFW(c,rho_vir):
   return c**3/(np.log(1+c)-c/(1+c))*rho_vir/3.
 
@@ -78,7 +82,7 @@ def scale_from_c(c,M,A,rho_vir):
       The scale radius and scale density, respectively.
   
   '''
-  R = (3*M/(4*np.pi*rho_vir))**(1./3)
+  R = R_from_M(M,rho_vir)
   r2 = R / c # r_{-2}
   if A == 0.:
     return r2,__rhos_from_c_NFW(c,rho_vir)
@@ -88,3 +92,24 @@ def scale_from_c(c,M,A,rho_vir):
                      bracket=[A/(2*r2)**1.5,__rhos_from_c_NFW(c,rho_vir)]).root
   rs = rs_from_r2(r2,rhos,A)
   return rs, rhos
+
+def A_max(c,M,rho_vir):
+  '''
+  Maximum sensible cusp amplitude A in a halo of mass M and concentration c.
+  Here rho_vir is the virial density.
+  '''
+  return np.sqrt(M*rho_vir/__min_params(c))
+
+def M_min(c,A,rho_vir):
+  '''
+  Minimum sensible halo mass M given concentration c and cusp amplitude A.
+  Here rho_vir is the virial density.
+  '''
+  return __min_params(c) * A**2 / rho_vir
+
+def c_min(M,A,rho_vir):
+  '''
+  Minimum sensible concentration c given halo mass M and cusp amplitude A.
+  Here rho_vir is the virial density.
+  '''
+  return np.exp(root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))*A**2/(M*rho_vir)),x0=0.,x1=1.).root)
