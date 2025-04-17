@@ -151,7 +151,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
         khm = np.pi * (4*np.pi/3 * rhoM/Mhm)**(1./3)
         lfs = xhm / khm
         mX = np.exp(root_scalar(lambda logm: free_streaming_length(cutoff,np.exp(logm),OmegaX*h**2,h,spin)/lfs-1.,x0=0.,x1=1.).root)
-      print('Using model %s with mX = %f keV'%(cutoff,mX))
+      print('CuspHaloModelWDM: Using model %s with mX = %f keV'%(cutoff,mX))
       T = lambda k: free_streaming_T(lfs*k,cutoff,spin)
     else:
       if not (mX is None and Mhm is None):
@@ -164,7 +164,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
       T = lambda k: np.interp(np.log(k),np.log(cut_k),cut_T,left=1.,right=0.)
     self.khm = khm
     self.Mhm = 4*np.pi/3 * rhoM * (np.pi/khm)**3
-    print('khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
+    print('CuspHaloModelWDM: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
     
     # load power spectrum and apply transfer function
     k = np.geomspace(1e-5,1e3*khm,1000)
