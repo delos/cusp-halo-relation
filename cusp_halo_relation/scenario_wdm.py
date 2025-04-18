@@ -106,8 +106,8 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     h, OmegaM, OmegaB: floats
       Cosmological parameters.
       Defaults are h=0.6774, OmegaM=0.3089, OmegaB=0.04886.
-      Note: we assume baryons contribute to the structure growth rate and halo
-      masses but not to cusp m and A.
+      Note: we assume for simplicity that baryons contribute to halos and cusps
+      just like dark matter.
       
     spin: 1/2 or 3/2
       Dark matter spin, only relevant if transfer=='VA23'. Default is 1/2.
@@ -115,9 +115,15 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     n_s: float
       Primordial spectral index, default 0.9649.
       
-    A_s, sigma8:
+    A_s, sigma8: floats
       Primordial spectral amplitude or sigma_8. If specified, sigma8 supersedes
       A_s. Default is A_s=2.100e-9.
+    
+    power: 'table' or 'EH'
+      How to generate the power spectrum. Default is 'table'.
+      - 'table': use the supplied table, which was generated using CLASS with
+        Planck (2018) cosmological parameters.
+      - 'EH': use the Eisenstein & Hu fitting formulae [arXiv:astro-ph/9709112].
   
   Methods:
     
@@ -132,7 +138,7 @@ class CuspHaloModelWDM(main.CuspHaloModel):
   
   '''
   
-  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None):
+  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,power='table'):
     
     # cosmology
     OmegaX = OmegaM - OmegaB
@@ -168,11 +174,11 @@ class CuspHaloModelWDM(main.CuspHaloModel):
     
     # load power spectrum and apply transfer function
     k = np.geomspace(1e-5,1e3*khm,1000)
-    P = perturbations.load_power(k,which='m',fb=0.,h=h,OmegaM=OmegaM,n_s=n_s,A_s=(A_s if sigma8 is None else None),sigma8=sigma8) * T(k)**2
+    P = perturbations.prepare_power(k,which='m',f_nc=0.,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=(A_s if sigma8 is None else None),sigma8=sigma8,method=power) * T(k)**2
     
     # initialize parent
-    super().__init__(k,P,growth=lambda a: perturbations.growth(a,OmegaM=OmegaM,fb=0.),
-                     rho=rhoM,fDM=OmegaX/OmegaM,amax=1.)
+    super().__init__(k,P,growth=lambda a: perturbations.growth(a,OmegaM=OmegaM,f_nc=0.),
+                     rho=rhoM,fDM=1.,amax=1.)
     
   def m_at_z(self,M,z):
     '''Predicted cusp mass m for a halo of mass M at redshift z.'''
