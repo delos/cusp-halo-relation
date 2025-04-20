@@ -1,3 +1,4 @@
-from .main import CuspHaloModel
-from .scenario_wdm import CuspHaloModelWDM
+from .cusp_halo import CuspHalo
+from .cusp_halo_concordance import CuspHaloStandard, CuspHaloWDM
 from . import cuspNFW
+from .cutoffs import Cutoff

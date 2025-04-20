@@ -11,7 +11,7 @@ def sigmaj(j,k,P):
   '''Evaluate \sigma_j given tabulated power spectrum P(k)'''
   return np.sqrt(sigmaj2(j,k,P))
 
-class CuspHaloModel(object):
+class CuspHalo(object):
   '''
   
   Class for evaluating the cusp-halo relation for a general cosmology.
@@ -22,7 +22,7 @@ class CuspHaloModel(object):
       A table of the dimensionless matter power spectrum P(k), evaluated in
       linear theory when a=1.
     
-    growth: float or function with 1 argument
+    growth: float or callable
       The linear growth function, D(a), as a function of the scale factor a.
       If a float g, we will assume D(a) = a^g. Default is g=1.
     
@@ -30,11 +30,6 @@ class CuspHaloModel(object):
       The cosmological mean density of matter that contributes to gravitational
       clustering. This is used for halo masses. The density should be specified
       when a=1. Default is rho=1, so results are in units of the mean density.
-    
-    fDM: float
-      The fraction of rho that is dark matter. This is a scaling factor for the
-      prompt cusps, since they are assumed to be dark matter only. Default is
-      fDM=1.
       
     amax: float
       Largest scale factor we are interested in. Default is 1.
@@ -64,7 +59,7 @@ class CuspHaloModel(object):
   
   '''
   
-  def __init__(self,k,P,growth=1.,rho=1.,fDM=1.,amax=1.):
+  def __init__(self,k,P,growth=1.,rho=1.,amax=1.):
     
     # record the power spectrum
     self.k = k
@@ -78,7 +73,6 @@ class CuspHaloModel(object):
     
     # record the density parameters
     self.rho = rho # evolves as a^-3
-    self.fDM = fDM
     
     # parameters of the cusp-peak relation
     self.A_coef = 24.
@@ -137,11 +131,11 @@ class CuspHaloModel(object):
   
   def A_from_m(self,m):
     '''Typical cusp coefficient A, given cusp mass m.'''
-    return self.fDM * self.A_m_coef * self.rho**(1.-self.A_m_index) * self.sigma0**(2.25-1.5*self.A_m_index) * self.sigma2**(1.5*self.A_m_index-0.75) * (m/self.fDM)**self.A_m_index
+    return self.A_m_coef * self.rho**(1.-self.A_m_index) * self.sigma0**(2.25-1.5*self.A_m_index) * self.sigma2**(1.5*self.A_m_index-0.75) * m**self.A_m_index
 
   def m_from_A(self,A):
     '''Typical cusp mass m, given cusp coefficient A.'''
-    return self.fDM * self.A_m_coef**(-1./self.A_m_index) * self.rho**(1.-1./self.A_m_index) * self.sigma0**(1.5-2.25/self.A_m_index) * self.sigma2**(-1.5+0.75/self.A_m_index) * (A/self.fDM)**(1./self.A_m_index)
+    return self.A_m_coef**(-1./self.A_m_index) * self.rho**(1.-1./self.A_m_index) * self.sigma0**(1.5-2.25/self.A_m_index) * self.sigma2**(-1.5+0.75/self.A_m_index) * A**(1./self.A_m_index)
 
   def collapse_a(self,M,a):
     '''
@@ -157,28 +151,28 @@ class CuspHaloModel(object):
     Evaluate the characteristic cusp mass m given the formation scale factor
     a_coll.
     '''
-    return self.fDM * self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.growth(a_coll)**(3./(1.-2.*self.A_m_index)) / self.sigma2**1.5
+    return self.m_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(2.-4.*self.A_m_index)) * self.growth(a_coll)**(3./(1.-2.*self.A_m_index)) / self.sigma2**1.5
   
   def characteristic_A(self,a_coll):
     '''
     Evaluate the characteristic cusp coefficient A given the formation scale
     factor a_coll.
     '''
-    return self.fDM * self.A_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index)) * self.growth(a_coll)**(3./(2.-4.*self.A_m_index)) / a_coll**1.5 / self.sigma2**0.75
+    return self.A_pre * self.rho * self.sigma0**((9.-6.*self.A_m_index)/(4.-8.*self.A_m_index)) * self.growth(a_coll)**(3./(2.-4.*self.A_m_index)) / a_coll**1.5 / self.sigma2**0.75
   
   def m(self,M,a):
     '''
     Evaluate the predicted cusp mass m for a halo of mass M at the scale factor
     a.
     '''
-    return self.fDM * self.characteristic_m(self.collapse_a(M,a))
+    return self.characteristic_m(self.collapse_a(M,a))
   
   def A(self,M,a):
     '''
     Evaluate the predicted cusp coefficient A for a halo of mass M at the scale
     factor a.
     '''
-    return self.fDM * self.characteristic_A(self.collapse_a(M,a))
+    return self.characteristic_A(self.collapse_a(M,a))
 
   def characteristic_c(self,a):
     '''
