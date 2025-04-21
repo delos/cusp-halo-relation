@@ -124,7 +124,7 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     P = perturbations.prepare_power(k,species=species,f_nc=f_nc,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=(A_s if sigma8 is None else None),sigma8=sigma8,method=transfer) * T(k)**2
     
     # initialize parent
-    super().__init__(k,P,growth=lambda a: perturbations.growth(a,OmegaM=OmegaM,f_nc=f_nc),rho=rho,amax=1.)
+    super().__init__(k,P,growth=lambda a: perturbations.growth_late(a,OmegaM=OmegaM,f_nc=f_nc),rho=rho,amax=1.)
     
   def m_at_z(self,M,z):
     '''Predicted cusp mass m for a halo of mass M at redshift z.'''
@@ -196,6 +196,8 @@ class CuspHaloWDM(CuspHaloStandard):
   def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table'):
     if sum(x is None for x in [mX,Mhm]) != 1:
       raise Exception('must specify exactly one of mX and Mhm')
+    if mX is None:
+      mX = 1. # dummy value if half-mode scale is specified instead
     T = cutoffs.Cutoff(cutoff,h=h,OmegaM=OmegaM,OmegaB=OmegaB,m=mX,spin=spin,).transfer
     super().__init__(T,baryons_cluster=True,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=A_s,sigma8=sigma8,transfer=transfer,Mhm=Mhm)
     print('CuspHaloWDM: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))

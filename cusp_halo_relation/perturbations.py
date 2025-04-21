@@ -8,7 +8,7 @@ def W(x):
   '''Top-hat window function in Fourier space.'''
   return np.piecewise(x,[x<=0.16],[lambda x: 1 - x**2/10. + x**4/280. - x**6/15120. + x**8/1330560. - x**10/172972800.,lambda x: 3/x**3 * (np.sin(x)-x*np.cos(x))])
 
-def growth(a,OmegaM,f_nc):
+def growth_late(a,OmegaM,f_nc):
   '''
   
   Linear-order growth function in a spatially flat matter/dark energy-dominated
@@ -40,6 +40,7 @@ def __power_table(k,species,f_nc,h,OmegaM,n_s,A_s=None,sigma8=None):
   # read file
   current_path = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
   zstr = '37'
+  a = 1./(1+float(zstr))
   table = np.loadtxt(current_path + '/data/T2_%s.txt'%(zstr)).T
   k0 = table[0]
   P0 = table[1+species]
@@ -47,17 +48,17 @@ def __power_table(k,species,f_nc,h,OmegaM,n_s,A_s=None,sigma8=None):
   # apply spectral tilt
   P0 *= (k0/0.05)**(n_s-1)
   
-  # evolve to a=1
-  a = 1./(1+float(zstr))
-  P0 *= (growth(1.,OmegaM=OmegaM,f_nc=f_nc)/growth(a,OmegaM=OmegaM,f_nc=f_nc))**2
-  
   # scale appropriately
   if (A_s is None and sigma8 is None) or (A_s is not None and sigma8 is not None):
     raise Exception('must specify exactly one of A_s and sigma8')
   if A_s is not None:
     P0 *= A_s
   if sigma8 is not None:
-    P0 *= sigma8**2 / simpson(P0*W(k0*8./h)**2,x=np.log(k0))
+    sigma8_a = sigma8 * growth_late(a,OmegaM=OmegaM,f_nc=0.) / growth_late(1.,OmegaM=OmegaM,f_nc=0.)
+    P0 *= sigma8_a**2 / simpson(P0*W(k0*8./h)**2,x=np.log(k0))
+  
+  # evolve to a=1
+  P0 *= (growth_late(1.,OmegaM=OmegaM,f_nc=f_nc)/growth_late(a,OmegaM=OmegaM,f_nc=f_nc))**2
   
   # return interpolated P
   return np.exp(np.interp(np.log(k),np.log(k0),np.log(P0),left=0.,right=0.))
