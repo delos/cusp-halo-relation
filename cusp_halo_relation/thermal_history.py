@@ -13,6 +13,34 @@ class ThermalHistory(object):
   
   We use data from arXiv:1606.07494 for temperatures between 10 MeV and 100 GeV
   and data from arXiv:1503.04935 for temperatures above 125 GeV.
+  
+  Parameters:
+    
+    T0_K: float
+      CMB temperature today in Kelvin. Default is 2.725.
+  
+  Methods:
+    
+    g(T), g_at_a(a), g_at_H(H):
+      Effective number of degrees of freedom for energy density, as a function
+      of photon temperature T, scale factor a, or Hubble rate H.
+    
+    gs(T), gs_at_a(a), gs_at_H(H):
+      Effective number of degrees of freedom for entropy density, as a function
+      of photon temperature T, scale factor a, or Hubble rate H.
+    
+    rhoR(T), rhoR_at_a(a):
+      Energy density at photon temperature T or scale factor a.
+    
+    H(T), H_at_a(a):
+      Hubble rate at photon temperature T or scale factor a.
+    
+    a(T), a_at_H(H):
+      Scale factor at photon temperature T or Hubble rate H.
+    
+    T_at_a(a), T_at_H(H):
+      Photon temperature at scale factor a or Hubble rate H.
+      
   '''
   def __init__(self,T0_K=2.725):
     self.T0 = kB_MeV * T0_K

@@ -32,7 +32,7 @@ def mass(r,rs,rhos,A):
 
 def r2_from_rs(rs,rhos,A):
   '''
-  Find the radius r_{-2} at which d\log\rho/d\log r = -2 for a cusp-NFW density
+  Find the radius r_{-2} at which dlog(rho)/dlog(r) = -2 for a cusp-NFW density
   profile with scale radius rs, scale density rhos, and cusp amplitude A.
   
   r2 ranges from rs/2 (if A=rhos*rs**1.5) to rs (if A=0).
@@ -43,7 +43,7 @@ def r2_from_rs(rs,rhos,A):
 def rs_from_r2(r2,rhos,A):
   '''
   Find the cusp-NFW scale radius rs, given r2 (the radius r_{-2} at which
-  d\log\rho/d\log r = -2), the scale density rhos, and the cusp amplitude A.
+  dlog(rho)/dlog(r) = -2), the scale density rhos, and the cusp amplitude A.
   '''
   z = A / (rhos * r2**1.5) # <= 2**1.5
   f = (8 + 6*z*(24*z + np.sqrt(72 + 564*z**2 + 6*z**4)))**(1./3)
