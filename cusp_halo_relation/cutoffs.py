@@ -61,6 +61,7 @@ def transfer_G04(k,m,Td,ad,Hd,aeq,Heq):
   Parameters:
     
     k: float or array
+      Wavenumber in MeV
     
     m: float
       Particle mass in MeV
@@ -71,6 +72,10 @@ def transfer_G04(k,m,Td,ad,Hd,aeq,Heq):
     
     aeq, Heq: floats
       Scale factor and Hubble rate (in MeV) at matter-radiation equality.
+      
+  Returns:
+    
+    T(k): array or float
     
   '''
   kd = 1.8*(m/Td)**0.5*ad*Hd
@@ -173,9 +178,9 @@ class Cutoff(thermal_history.ThermalHistory):
     if self.model in models_WDM:
       return transfer_WDM(k,self.model,self.m,(self.OmegaM-self.OmegaB)*self.h**2,self.h,self.spin)
     if self.model == 'G04':
-      return transfer_G04(k*Mpc,self.m,self.Td,self.ad,self.Hd,self.aeq,self.Heq)
+      return transfer_G04(k/Mpc,self.m,self.Td,self.ad,self.Hd,self.aeq,self.Heq)
     if self.model == 'fs':
-      return self.shape(self.fsl_ad*k*Mpc)
+      return self.shape(self.fsl_ad*k/Mpc)
   
   def fsl(self,a0):
     '''

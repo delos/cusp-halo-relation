@@ -2,7 +2,7 @@ import numpy as np
 import os
 from scipy.special import hyp2f1
 from scipy.integrate import simpson
-from .EHfit import transferfunction_EisensteinHu
+from .transfer_EHfit import transferfunction_EisensteinHu
 
 def W(x):
   '''Top-hat window function in Fourier space.'''
