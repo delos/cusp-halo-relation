@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.optimize import root_scalar
 
 from . import cusp_halo
 from . import perturbations
@@ -39,12 +38,11 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       May be specified as a callable function T(k) or a table in the form
       (k, T).
       
-    baryons_cluster: boolean
-      Do baryons contribute to gravitational clustering?
+    include_baryons: boolean
+      Does baryonic mass contribute to halos, cusps, etc.?
       - True: accurate for k < 10^2 Mpc^-1; appropriate for warm dark matter.
       - False: accurate for k > 10^3 Mpc^-1; typically appropriate for cold
         dark matter.
-      Scale-dependent perturbation growth is not currently supported.
     
     h, OmegaM, OmegaB: floats
       Cosmological parameters.
@@ -71,6 +69,9 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       - T(khm)=1/2, where T multiplies delta (not P).
       - Mhm = 4pi/3 (pi/khm)^3 rho
       - lhm = 2pi/khm
+      
+    verbose: boolean
+      Default True. Change to False to suppress messages.
   
   Methods:
     
@@ -85,7 +86,7 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
   
   '''
   
-  def __init__(self,cutoff,baryons_cluster,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',Mhm=None,khm=None,lhm=None):
+  def __init__(self,cutoff,include_baryons,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',Mhm=None,khm=None,lhm=None,verbose=True):
     
     # cosmology
     OmegaX = OmegaM - OmegaB
@@ -93,9 +94,8 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     rhoM = rhoCrit * OmegaM
     rhoX = rhoCrit * OmegaX
     
-    rho = rhoM if baryons_cluster else rhoX
-    species = 'm' if baryons_cluster else 'X'
-    f_nc = 0. if baryons_cluster else OmegaB/OmegaM
+    rho = rhoM if include_baryons else rhoX
+    species = 2 if include_baryons else 0
     
     # cutoff
     khm_infer = find_khm(cutoff)
@@ -118,13 +118,30 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       
     self.khm = khm
     self.Mhm = 4*np.pi/3 * rho * (np.pi/khm)**3
-    print('CuspHaloStandardCosmology: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
+    if verbose:
+      print('CuspHaloStandard: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
     
+    # transfer and growth functions for CDM
     k = np.exp(np.arange(np.log(1e-5),np.log(1e3*khm),0.02)) # intervals of 0.02 in logk
-    P = perturbations.prepare_power(k,species=species,f_nc=f_nc,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=(A_s if sigma8 is None else None),sigma8=sigma8,method=transfer) * T(k)**2
+    if transfer.lower() == 'eh':
+      if not include_baryons:
+        raise Exception('must include baryons if using EH transfer function')
+      transfer = perturbations.transfer_EisensteinHu(k,h,OmegaM,OmegaB)[species]
+      growth = lambda a1: perturbations.growth_late(a1,OmegaM,0.)
+    elif transfer.lower() == 'table':
+      table = perturbations.Transfer_table()
+      transfer = table(k,1.)[species]
+      growth = lambda a1,k1: table(k1,a1)[species]/table(k1,1.)[species]
+    else:
+      raise Exception('Invalid transfer fuction: %s'%transfer)
+    
+    # power spectrum for CDM
+    P = A_s * (k/(0.05*h))**(n_s-1) * transfer**2
+    if sigma8 is not None:
+      P *= (sigma8/perturbations.sigma8(k,P,h))**2
     
     # initialize parent
-    super().__init__(k,P,growth=lambda a: perturbations.growth_late(a,OmegaM=OmegaM,f_nc=f_nc),rho=rho,amax=1.)
+    super().__init__(k,P*T(k)**2,growth=growth,rho=rho,amax=1.,verbose=verbose)
     
   def m_at_z(self,M,z):
     '''Predicted cusp mass m for a halo of mass M at redshift z.'''
@@ -180,6 +197,9 @@ class CuspHaloWDM(CuspHaloStandard):
       - 'table': use the supplied table, which was generated using CLASS with
         Planck (2018) cosmological parameters (same as our defaults).
       - 'EH': use the Eisenstein & Hu fitting formulae [arXiv:astro-ph/9709112].
+      
+    verbose: boolean
+      Default True. Change to False to suppress messages.
   
   Methods:
     
@@ -193,11 +213,12 @@ class CuspHaloWDM(CuspHaloStandard):
       Typical concentration parameter for a small halo at redshift z.
   
   '''
-  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table'):
+  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',verbose=True):
     if sum(x is None for x in [mX,Mhm]) != 1:
       raise Exception('must specify exactly one of mX and Mhm')
     if mX is None:
       mX = 1. # dummy value if half-mode scale is specified instead
-    T = cutoffs.Cutoff(cutoff,h=h,OmegaM=OmegaM,OmegaB=OmegaB,m=mX,spin=spin,).transfer
-    super().__init__(T,baryons_cluster=True,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=A_s,sigma8=sigma8,transfer=transfer,Mhm=Mhm)
-    print('CuspHaloWDM: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
+    T = cutoffs.Cutoff(cutoff,h=h,OmegaM=OmegaM,OmegaB=OmegaB,m=mX,spin=spin,verbose=verbose).transfer
+    super().__init__(T,include_baryons=True,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=A_s,sigma8=sigma8,transfer=transfer,Mhm=Mhm,verbose=verbose)
+    if verbose:
+      print('CuspHaloWDM: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))

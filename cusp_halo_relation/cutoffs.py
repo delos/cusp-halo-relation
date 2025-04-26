@@ -50,7 +50,7 @@ def transfer_WDM(k,model,mX,omegaX,h,spin=0.5):
     alpha = 0.070 * mX**-1.11 * (omegaX/0.1225)**0.11
     nu = 1.12
   else:
-    raise ValueError('invalid free-streaming model')
+    raise Exception('invalid free-streaming model')
   return (1. + (alpha*k)**(2.*nu))**(-5./nu)
 
 def transfer_G04(k,m,Td,ad,Hd,aeq,Heq):
@@ -130,6 +130,9 @@ class Cutoff(thermal_history.ThermalHistory):
       
     pd: float
       Characteristic momentum at decoupling. Default is pd=Td.
+      
+    verbose: boolean
+      Default True. Change to False to suppress messages.
     
   Methods:
     
@@ -138,15 +141,17 @@ class Cutoff(thermal_history.ThermalHistory):
       Here k is in Mpc^-1.
     
   '''
-  def __init__(self,model,shape=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,T_CMB=2.725,Neff=3.046,m=None,spin=None,Td=None,ad=None,Hd=None,pd=None):
+  def __init__(self,model,shape=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,T_CMB=2.725,Neff=3.046,m=None,spin=None,Td=None,ad=None,Hd=None,pd=None,verbose=True):
     self.model, self.shape = model, shape
     self.m, self.spin = m, spin
     self.h, self.OmegaM, self.OmegaB = h, OmegaM, OmegaB
     
     if model in models_WDM: # For WDM, we don't need the SM thermal history
-      print('Cutoffs: Warm dark matter, model=%s'%model)
+      if verbose:
+        print('Cutoffs: Warm dark matter, model=%s'%model)
     else: # Otherwise, we do
-      print('Cutoffs: Cold dark matter, model=%s'%model)
+      if verbose:
+        print('Cutoffs: Cold dark matter, model=%s'%model)
       super().__init__()
       rhoCrit = rhoCrit_h2 * h**2
       rhoR = np.pi**2/30 * 2 * (1.+Neff*7./8*(4./11)**(4./3)) * kB4 * T_CMB**4 # Msol/Mpc^3
