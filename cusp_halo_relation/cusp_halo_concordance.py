@@ -89,6 +89,8 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
   def __init__(self,cutoff,include_baryons,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',Mhm=None,khm=None,lhm=None,verbose=True):
     
     # cosmology
+    self.OmegaM = OmegaM
+    self.h = h
     OmegaX = OmegaM - OmegaB
     rhoCrit = rhoCrit_h2 * h**2
     rhoM = rhoCrit * OmegaM
@@ -142,6 +144,9 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     
     # initialize parent
     super().__init__(k,P*T(k)**2,growth=growth,rho=rho,amax=1.,verbose=verbose)
+  
+  def rhoCrit(self,a):
+    return rhoCrit_h2 * self.h**2 * (self.OmegaM*a**-3 + (1.-self.OmegaM))
     
   def m_at_z(self,M,z):
     '''Predicted cusp mass m for a halo of mass M at redshift z.'''

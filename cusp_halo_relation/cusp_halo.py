@@ -1,7 +1,6 @@
 from inspect import signature
 import numpy as np
 from scipy.integrate import simpson
-from scipy.special import lambertw
 from . import concentration
 
 default_params = {
@@ -9,16 +8,16 @@ default_params = {
   'm_coef':7.3364, # coefficient of m in cusp-peak connection
   'A_m_index':1.9, # index of cusp A-m relation
   'A_m_coef':0.8, # coefficient of cusp A-m relation
-  'mass_growth_fun':None, # mass growth factor, function of sigma0
-  'mass_growth_param':4.5, # parameter in mass growth factor
+  'mass_growth_fun':lambda s0: np.exp(-4.5/s0), # mass growth factor, function of sigma0
+  'c_param':776., # parameter in concentration model
   }
 
 # moments of the power spectrum
 def sigmaj2(j,k,P,axis=0):
-  '''Evaluate \sigma_j^2 given tabulated power spectrum P(k)'''
+  '''Evaluate sigma_j^2 given tabulated power spectrum P(k)'''
   return simpson(P*k**(2*j),x=np.log(k),axis=axis)
 def sigmaj(j,k,P,axis=0):
-  '''Evaluate \sigma_j given tabulated power spectrum P(k)'''
+  '''Evaluate sigma_j given tabulated power spectrum P(k)'''
   return np.sqrt(sigmaj2(j,k,P,axis=axis))
 
 class CuspHalo(object):
@@ -52,9 +51,9 @@ class CuspHalo(object):
       - A_m_index: index of cusp A-m relation (default 1.9).
       - A_m_coef: coefficient of cusp A-m relation (default 0.8).
       - mass_growth_fun: mass growth factor, function of sigma0.
-          Default is exp(-mass_growth_param/sigma0).
-      - mass_growth_param: parameter in mass growth factor (default 4.5).
-          If custom factor is specified, this only affects halo concentrations.
+          Default is exp(-4.5/sigma0).
+      - c_param: parameter in Ludlow et al. (2013) concentration model.
+          Default is 776.
           
     verbose: boolean
       Default True. Change to False to suppress messages.
@@ -98,21 +97,19 @@ class CuspHalo(object):
     self.verbose = verbose
     
     # set up the growth function
-    amin = 0.05/sigmaj(0,k,P) # this should be long before any peaks collapse
-    self.__prepare_growth(growth,amin,amax)
+    self.a_min = 0.05/sigmaj(0,k,P) # this should be long before any peaks collapse
+    self.a_max = amax
+    self.__prepare_growth(growth,self.a_min,self.a_max)
     
-    # scale factor when \sigma_0=1
+    # scale factor when sigma_0=1
     self.a0 = np.exp(np.interp(0.,self.__tab_lns0,self.__tab_lna,left=np.nan,right=np.nan))
     
     # prefactors for cusp-halo results
     self.A_pre = self.model_params['A_coef']*(self.model_params['A_coef']/(self.model_params['A_m_coef']*self.model_params['m_coef']**self.model_params['A_m_index']))**(1./(2.*self.model_params['A_m_index']-1.))
     self.m_pre = self.model_params['m_coef']*(self.model_params['A_coef']/(self.model_params['A_m_coef']*self.model_params['m_coef']**self.model_params['A_m_index']))**(2./(2.*self.model_params['A_m_index']-1.))
     
-    if self.model_params['mass_growth_fun'] is None:
-      self.mass_growth_s0 = lambda s0: np.exp(-self.model_params['mass_growth_param']/s0)
-    else:
-      self.mass_growth_s0 = self.model_params['mass_growth_fun']
-      self.__prepare_cusps(growth,amin,amax) # set up interpolation table for cusp-halo model
+    # set up interpolation table for cusp-halo model
+    self.__prepare_cusps(growth,self.a_min,self.a_max)
     
   def __prepare_growth(self,growth,amin,amax):
     # tabulate in intervals of about 1% in a (this is overkill)
@@ -178,8 +175,8 @@ class CuspHalo(object):
     return np.exp(np.interp(np.log(sigma0),self.__tab_lns0,self.__tab_lna,left=np.nan,right=np.nan))
   
   def mass_growth(self,a):
-    '''Evaluate the mass growth factor \chi(a) at scale factor a.'''
-    return self.mass_growth_s0(self.sigma0(a))
+    '''Evaluate the mass growth factor chi(a) at scale factor a.'''
+    return self.model_params['mass_growth_fun'](self.sigma0(a))
   
   def A_from_m(self,m,a=None):
     '''Typical cusp coefficient A, given cusp mass m.'''
@@ -199,12 +196,7 @@ class CuspHalo(object):
     central cusp of a halo of mass M at the scale factor a.
     '''
     reducedM = M / (self.m_pre * self.rho(a)*(self.sigma0(a)/self.sigma2(a))**1.5 * self.mass_growth(a) )
-    if self.model_params['mass_growth_fun'] is not None:
-      a_out = np.exp(np.interp(-np.log(reducedM),self.__tab_lninvMreduced,self.__tab_lna,left=-np.inf,right=np.inf))
-    else:
-      fac = (2*self.model_params['A_m_index']-1)*self.model_params['mass_growth_param']/3.
-      s0 = fac / np.real(lambertw(fac * reducedM**((2*self.model_params['A_m_index']-1.)/3.)))
-      a_out = self.a_from_sigma0(s0)
+    a_out = np.exp(np.interp(-np.log(reducedM),self.__tab_lninvMreduced,self.__tab_lna,left=-np.inf,right=np.inf))
     return np.where(a_out<=a,a_out,np.nan)
   
   def characteristic_m(self,a_coll):
@@ -238,6 +230,14 @@ class CuspHalo(object):
   def characteristic_c(self,a):
     '''
     Estimate the concentration parameter c at scale factor a for halos close to
-    the cutoff scale.
+    the cutoff scale. If the class has a method rhoCrit(a) that returns the
+    critical density as a function of scale factor, then we use it. Otherwise
+    we use the matter density rho(a), which gives less accurate results.
     '''
-    return concentration.characteristic_c(self.sigma0(a),self.model_params['mass_growth_param'])
+    p = dict(Dvir=200.,C=self.model_params['c_param'],tmin=self.a_min/a)
+    if 'rhoCrit' in dir(self):
+      return concentration.c_L13_NFW(lambda x: self.rhoCrit(a*x)/self.rhoCrit(a),lambda x: self.mass_growth(a*x)/self.mass_growth(a),**p)
+    else:
+      if self.verbose:
+        print('CuspHalo: Warning: using matter density rho(a) for concentrations because rhoCrit(a) is not available.')
+      return concentration.c_L13_NFW(lambda x: self.rho(a*x)/self.rho(a),lambda x: self.mass_growth(a*x)/self.mass_growth(a),**p)

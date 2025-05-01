@@ -59,7 +59,7 @@ def __rhos_from_c_NFW(c,rho_vir):
 def __min_params(c):
   return 384*np.pi*(np.sqrt(c/(2 + c)) - np.arcsinh(np.sqrt(c/2)))**2/c**3
 
-def scale_from_c(c,M,A,rho_vir):
+def scale_from_c(c,M,A,rho_vir,cmin_error=True):
   '''
   
   Find the cusp-NFW profile scale parameters, given halo concentration c and
@@ -76,6 +76,11 @@ def scale_from_c(c,M,A,rho_vir):
     rho_vir: float
       The virial density (e.g., 200 times the cosmological mean value).
     
+    cmin_error: boolean
+      If True, we raise an exception if the concentration is too low and would
+      violate rhos * rs**1.5 >= A. If False, we increase the concentration to
+      its minimum value and continue. Default is True.
+    
   Returns:
     
     rs, rhos: floats
@@ -87,7 +92,11 @@ def scale_from_c(c,M,A,rho_vir):
   if A == 0.:
     return r2,__rhos_from_c_NFW(c,rho_vir)
   if M*rho_vir/A**2 < __min_params(c):
-    raise ValueError('M*rho_vir/A**2=%.3e must be >%.3e for c=%.2f.'%(M*rho_vir/A**2,__min_params(c),c))
+    if cmin_error:
+      raise Exception('M*rho_vir/A**2=%.3e must be >%.3e for c=%.2f.'%(M*rho_vir/A**2,__min_params(c),c))
+    else:
+      c = c_min(M,A,rho_vir)
+      r2 = R / c # r_{-2}
   rhos = root_scalar(lambda rhos: np.log(mass(R,rs_from_r2(r2,rhos,A),rhos,A)/M),
                      bracket=[A/(2*r2)**1.5,__rhos_from_c_NFW(c,rho_vir)]).root
   rs = rs_from_r2(r2,rhos,A)
