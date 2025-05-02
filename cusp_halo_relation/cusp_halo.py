@@ -234,10 +234,10 @@ class CuspHalo(object):
     critical density as a function of scale factor, then we use it. Otherwise
     we use the matter density rho(a), which gives less accurate results.
     '''
-    p = dict(Dvir=200.,C=self.model_params['c_param'],tmin=self.a_min/a)
+    p = dict(Dvir=200.,C=self.model_params['c_param'])
     if 'rhoCrit' in dir(self):
-      return concentration.c_L13_NFW(lambda x: self.rhoCrit(a*x)/self.rhoCrit(a),lambda x: self.mass_growth(a*x)/self.mass_growth(a),**p)
+      return concentration.c_L13_NFW(self.rhoCrit(self.__tab_a)/self.rhoCrit(a),self.mass_growth(self.__tab_a)/self.mass_growth(a),**p)
     else:
       if self.verbose:
         print('CuspHalo: Warning: using matter density rho(a) for concentrations because rhoCrit(a) is not available.')
-      return concentration.c_L13_NFW(lambda x: self.rho(a*x)/self.rho(a),lambda x: self.mass_growth(a*x)/self.mass_growth(a),**p)
+      return concentration.c_L13_NFW(self.rho(self.__tab_a)/self.rho(a),self.mass_growth(self.__tab_a)/self.mass_growth(a),**p)
