@@ -58,35 +58,6 @@ class CuspHalo(object):
     verbose: boolean
       Default True. Change to False to suppress messages.
   
-  Methods:
-    
-    m(M,a): 
-      Median cusp mass m at halo mass M and scale factor a.
-    
-    A(M,a):
-      Median cusp coefficient A at halo mass M and scale factor a.
-      
-    characteristic_c(a):
-      Estimated halo concentration for small halos at scale factor a.
-
-    characteristic_m(a):
-      Characteristic cusp mass for young cusps at scale factor a.
-      
-    characteristic_A(a):
-      Characteristic cusp coefficient for young cusps at scale factor a.
-    
-    collapse_a(M):
-      Estimated scale factor of cusp formation for a halo of mass M.
-    
-    mass_growth(a):
-      Mass growth factor at scale factor a.
-      
-    sigma0(a), sigma1(a), sigma2(a), gamma(a):
-      Moments of the power spectrum in physical units at scale factor a.
-    
-    rho(a):
-      Density in physical units at scale factor a.
-  
   '''
   
   def __init__(self,k,P,growth=1.,rho=1.,amax=1.,model_params=default_params,verbose=True):
@@ -234,10 +205,11 @@ class CuspHalo(object):
     critical density as a function of scale factor, then we use it. Otherwise
     we use the matter density rho(a), which gives less accurate results.
     '''
-    p = dict(Dvir=200.,C=self.model_params['c_param'])
+    mass = self.mass_growth(self.__tab_a)/self.mass_growth(a)
     if 'rhoCrit' in dir(self):
-      return concentration.c_L13_NFW(self.rhoCrit(self.__tab_a)/self.rhoCrit(a),self.mass_growth(self.__tab_a)/self.mass_growth(a),**p)
+      density = self.rhoCrit(self.__tab_a)/self.rhoCrit(a)
     else:
       if self.verbose:
         print('CuspHalo: Warning: using matter density rho(a) for concentrations because rhoCrit(a) is not available.')
-      return concentration.c_L13_NFW(self.rho(self.__tab_a)/self.rho(a),self.mass_growth(self.__tab_a)/self.mass_growth(a),**p)
+      density = self.rho(self.__tab_a)/self.rho(a)
+    return concentration.concentration_L13_NFW(density,mass,Dvir=200.,C=self.model_params['c_param'])

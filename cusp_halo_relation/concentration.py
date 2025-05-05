@@ -12,7 +12,7 @@ def __m2_from_p2_NFW(p2,Dvir,C):
 def __c_from_p2_NFW(p2,Dvir,C):
   return np.exp(np.interp(np.log(p2*C/Dvir),__tab_logp2_NFW,__tab_logc,left=np.nan,right=np.nan))
 
-def c_L13_NFW(rho_over_rho0,M_over_M0,Dvir=200.,C=776.):
+def concentration_L13_NFW(rho_over_rho0,M_over_M0,Dvir=200.,C=776.):
   '''
   Estimate halo concentration c=R_vir/r_-2 from mass accretion history. Here
   R_vir is the virial radius and r_-2 is the radius at which dlnrho/dlnr=-2.
@@ -27,11 +27,11 @@ def c_L13_NFW(rho_over_rho0,M_over_M0,Dvir=200.,C=776.):
     rho: array
       Density of the universe over a range of times, specified in units of the
       density at the "current" time (when we want to evaluate the halo
-      concentration).
+      concentration). Must be in decreasing order.
       
     M: arraty
       Halo mass over the same range of times, specified in units of the halo
-      mass at the "current" time.
+      mass at the "current" time. Must be in increasing order.
     
     Dvir: float
       Virial overdensity factor. Default is 200.

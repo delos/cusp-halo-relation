@@ -134,12 +134,6 @@ class Cutoff(thermal_history.ThermalHistory):
     verbose: boolean
       Default True. Change to False to suppress messages.
     
-  Methods:
-    
-    transfer: callable
-      The cutoff transfer function T(k) that multiplies the density contrast.
-      Here k is in Mpc^-1.
-    
   '''
   def __init__(self,model,shape=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,T_CMB=2.725,Neff=3.046,m=None,spin=None,Td=None,ad=None,Hd=None,pd=None,verbose=True):
     self.model, self.shape = model, shape

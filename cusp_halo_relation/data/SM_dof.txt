@@ -1,6 +1,6 @@
-# T < 10 MeV is a straightforward calculation
+# T < 10 MeV is a common calculation; we use data from http://www.laine.itp.unibe.ch/eos15/
 # Data for 10 MeV <= T <= 100 GeV is from arXiv:1606.07494
-# Data for T >= 125 GeV is from arXiv:1503.04935
+# Data for T >= 125 GeV is from arXiv:1503.04935 (http://www.laine.itp.unibe.ch/eos15/)
 # -----------------------
 # log10(T/MeV) g_* g_*s
 -2.0000 3.3708 3.9177

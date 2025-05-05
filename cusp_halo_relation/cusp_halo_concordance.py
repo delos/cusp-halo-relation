@@ -47,8 +47,6 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     h, OmegaM, OmegaB: floats
       Cosmological parameters.
       Defaults are h=0.6774, OmegaM=0.3089, OmegaB=0.04886.
-      Note: we assume for simplicity that baryons contribute to halos and cusps
-      just like dark matter.
       
     n_s: float
       Primordial spectral index, default 0.9649.
@@ -72,17 +70,6 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       
     verbose: boolean
       Default True. Change to False to suppress messages.
-  
-  Methods:
-    
-    m_at_z(M,z):
-      Cusp mass m, given halo mass M and redshift z.
-    
-    A_at_z(M,z): 
-      Cusp coefficient A, given halo mass M and redshift z.
-      
-    c_at_z(z):
-      Typical concentration parameter for a small halo at redshift z.
   
   '''
   
@@ -205,17 +192,6 @@ class CuspHaloWDM(CuspHaloStandard):
       
     verbose: boolean
       Default True. Change to False to suppress messages.
-  
-  Methods:
-    
-    m_at_z(M,z):
-      Cusp mass m, given halo mass M and redshift z.
-    
-    A_at_z(M,z): 
-      Cusp coefficient A, given halo mass M and redshift z.
-      
-    c_at_z(z):
-      Typical concentration parameter for a small halo at redshift z.
   
   '''
   def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',verbose=True):
