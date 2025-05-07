@@ -133,6 +133,10 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     super().__init__(k,P*T(k)**2,growth=growth,rho=rho,amax=1.,verbose=verbose)
   
   def rhoCrit(self,a):
+    '''
+    Critical density as a function of scale factor a. Only relevant for halo
+    concentrations.
+    '''
     return rhoCrit_h2 * self.h**2 * (self.OmegaM*a**-3 + (1.-self.OmegaM))
     
   def m_at_z(self,M,z):

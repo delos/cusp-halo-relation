@@ -62,5 +62,5 @@ If you use this code, please cite the paper [coming soon]. Other citations are l
 * [Green, Hofmann, & Schwarz (2004)](https://arxiv.org/abs/astro-ph/0309621), if you use the `'G04'` WIMP transfer function.
 * [Eisenstein & Hu (1998)](https://arxiv.org/abs/astro-ph/9709112), if you use `transfer='EH'` to make the matter power spectrum.
 * [Blas, Lesgourgues, & Tram (2011)](https://arxiv.org/abs/1104.2933), if you use `transfer='table'` to make the matter power spectrum, as this uses a power spectrum precomputed using [CLASS](http://class-code.net/).
-* [Laine & Meyer (2015)](https://arxiv.org/abs/1503.04935) and [Borsanyi et al. (2016)](https://arxiv.org/abs/1606.07494), if you use `Cutoff` to do calculations with cold dark matter, as we use Standard Model thermal history data drawn from these works.
+* [Laine & Meyer (2015)](https://arxiv.org/abs/1503.04935) and [Borsanyi et al. (2016)](https://arxiv.org/abs/1606.07494), if you use `Cutoff` to do calculations with cold dark matter (decoupling temperatures above ~10 MeV), as we use Standard Model thermal history data drawn from these works.
 * [Ludlow et al. (2013)](https://arxiv.org/abs/1302.0288), if you use halo concentrations from this code, since we directly use the results from that work.
