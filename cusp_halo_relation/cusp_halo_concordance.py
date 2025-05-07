@@ -151,6 +151,17 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     '''Estimated typical concentration parameter of small halos at redshift z.'''
     return self.characteristic_c(1./(1.+z))
   
+  def rhoCrit_at_z(self,z):
+    '''
+    Critical density as a function of redshift z. Only relevant for halo
+    concentrations.
+    '''
+    return self.rhoCrit(1./(1.+z))
+  
+  def rho_at_z(self,z):
+    '''Average density as a function of redshift z.'''
+    return self.rho(1./(1.+z))
+  
 class CuspHaloWDM(CuspHaloStandard):
   '''
   
