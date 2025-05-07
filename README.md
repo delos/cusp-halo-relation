@@ -45,7 +45,21 @@ For a completely arbitrary cosmology, use `CuspHalo`, which takes the matter pow
 
 To evaluate the cusp-NFW density use `cusp_halo_relation.cuspNFW.density(r,rs,rhos,A)`, which returns the density at radius `r` given scale radius `rs`, scale density `rhos`, and cusp coefficient `A`. To evaluate the enclosed mass, use `cusp_halo_relation.cuspNFW.mass(r,rs,rhos,A)`.
 
-To obtain the scale radius and scale density in the first place, use `cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)`. This takes the halo mass `M`, concentration `c`, cusp coefficient `A`, and virial density `rho_vir`.
+To obtain the scale radius and scale density in the first place, use `cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)`. This takes the halo mass `M`, concentration `c`, cusp coefficient `A`, and virial density `rho_vir`. For example, continuing the warm dark matter example above, we can evaluate the scale radius and density for the cusp-NFW profile of a halo with the predicted cusp coefficient and halo concentration at a given redshift:
+
+```
+dark_matter_mass = 10. # dark matter particle mass in keV
+model = cusp_halo_relation.CuspHaloWDM(mX=dark_matter_mass)
+
+halo_mass = 1e9 # in solar mass
+redshift = 2.
+
+A = model.A_at_z(M=halo_mass,z=redshift) # cusp coefficient A for these halos, in solar mass/Mpc^1.5
+c = model.c_at_z(z=redshift) # halo concentration
+
+rho_vir = 200.*model.rhoCrit_at_z(z=redshift)
+rs, rhos = cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)
+```
 
 See `help(cusp_halo_relation.cuspNFW)` (or [cuspNFW.py](/cusp_halo_relation/cuspNFW.py)) for further possibilities.
 
