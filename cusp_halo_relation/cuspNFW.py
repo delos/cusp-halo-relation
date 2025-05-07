@@ -27,7 +27,7 @@ def mass(r,rs,rhos,A):
   This profile only makes sense if rhos * rs**1.5 >= A.
   '''
   x,y = np.broadcast_arrays(r/rs,A/(rhos * rs**1.5))
-  return 4*np.pi*rs**3*rhos*np.piecewise(y,[y<0.001,y>0.999],[__mass_smallA,__mass_largeA,__mass],x)
+  return 4*np.pi*rs**3*rhos*np.piecewise(y,[(0.<=y)&(y<0.001),(0.001<=y)&(y<=0.999),(0.999<y)&(y<1.001)],[__mass_smallA,__mass,__mass_largeA,np.nan],x)
 
 def r2_from_rs(rs,rhos,A):
   '''
