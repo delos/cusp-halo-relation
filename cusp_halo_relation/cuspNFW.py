@@ -58,7 +58,7 @@ def __rhos_from_c_NFW(c,rho_vir):
 def __min_params_largec(c):
   return 384*np.pi*(np.sqrt(c/(2 + c)) - np.arcsinh(np.sqrt(c/2)))**2/c**3
 def __min_params_smallc(c):
-  return 16.755160819145562 - 15.079644737231007*c + 10.12490432356939*c**2
+  return 16*np.pi/3. - 24*np.pi/5.*c + 564*np.pi/175.*c**2
 def __min_params(c):
   return np.piecewise(c,[c<0.001],[__min_params_smallc,__min_params_largec])
 
@@ -125,5 +125,8 @@ def c_min(M,A,rho_vir):
   Minimum sensible concentration c given halo mass M and cusp amplitude A.
   Here rho_vir is the virial density.
   '''
-  lnc = root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))*A**2/(M*rho_vir)),x0=0.,x1=1.).root
+  params = M*rho_vir/A**2
+  if params > 16*np.pi/3. - 1e-2:
+    return max(5*(42 - np.sqrt(987/np.pi*params-3500))/282.,0.)
+  lnc = root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))/params),x0=0.,x1=1.).root
   return np.exp(lnc)
