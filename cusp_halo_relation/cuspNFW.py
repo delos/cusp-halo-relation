@@ -126,7 +126,7 @@ def c_min(M,A,rho_vir):
   Here rho_vir is the virial density.
   '''
   params = M*rho_vir/A**2
-  if params > 16*np.pi/3. - 1e-2:
-    return max(5*(42 - np.sqrt(987/np.pi*params-3500))/282.,0.)
+  if params >= 16*np.pi/3.:
+    return 0.
   lnc = root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))/params),x0=0.,x1=1.).root
   return np.exp(lnc)
