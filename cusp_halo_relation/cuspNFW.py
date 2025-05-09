@@ -147,12 +147,8 @@ def sigma_r(r,rs,rhos,A,G=1.):
   If G is not specified, we return sigma_r/sqrt(G), which has dimensions of
   sqrt(mass/length).
   '''
-  try:
-    rmin = r[0]
-    rmax = 30.*max(r[-1],rs)
-  except:
-    rmin = r
-    rmax = 30.*max(r,rs)
+  rmin = np.min(r)
+  rmax = 30.*max(np.max(r),rs)
   Nr = int(np.round(np.log(rmax/rmin)/np.log(1.02))) # step in factors of 1.02
   _r = np.geomspace(rmin,rmax,Nr)
   _p = density(_r,rs,rhos,A)
