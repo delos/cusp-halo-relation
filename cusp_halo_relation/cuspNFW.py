@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import root_scalar
+from scipy.integrate import cumtrapz
 
 def density(r,rs,rhos,A):
   '''
@@ -130,3 +131,32 @@ def c_min(M,A,rho_vir):
     return 0.
   lnc = root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))/params),x0=0.,x1=1.).root
   return np.exp(lnc)
+
+def __sigma2_r_large(x):
+  logx = np.log(x)
+  return (-3./16+logx/4)/x + (69./200+logx/10)/x**2 + (-97./1200-logx/20)/x**3 + (71./3675+logx/35)/x**4 + (-1./3136-logx/56)/x**5 + (-1271./211680+logx/84)/x**6
+
+def sigma_r(r,rs,rhos,A,G=1.):
+  '''
+  Evaluate radial velocity dispersion at radius r for a cusp-NFW density
+  profile with scale radius rs, scale density rhos, and cusp amplitude A.
+  We assume an isotropic velocity distribution.
+  
+  This profile only makes sense if rhos * rs**1.5 >= A.
+  
+  If G is not specified, we return sigma_r/sqrt(G), which has dimensions of
+  sqrt(mass/length).
+  '''
+  try:
+    rmin = r[0]
+    rmax = 30.*max(r[-1],rs)
+  except:
+    rmin = r
+    rmax = 30.*max(r,rs)
+  Nr = int(np.round(np.log(rmax/rmin)/np.log(1.02))) # step in factors of 1.02
+  _r = np.geomspace(rmin,rmax,Nr)
+  _p = density(_r,rs,rhos,A)
+  _m = mass(_r,rs,rhos,A)
+  _ps2_0 = 4*np.pi*G*rhos*rs**2*__sigma2_r_large(_r[-1]/rs) * _p[-1]
+  _ps2 = cumtrapz(-(_p*G*_m/_r)[::-1],x=np.log(_r)[::-1],initial=0)[::-1] + _ps2_0
+  return np.interp(np.log(r),np.log(_r),np.sqrt(_ps2/_p),left=np.nan,right=np.nan)

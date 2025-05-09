@@ -8,7 +8,7 @@ from . import cutoffs
 rhoCrit_h2 = 2.7744948e11 # Msol/Mpc^3
 
 def find_khm(cutoff):
-  '''Find half-mode k for a tabulated cutoff transfer function T(k).'''
+  '''Find half-mode k for a tabulated/callable cutoff transfer function T(k).'''
   if callable(cutoff):
     k0 = 1e-5
     k1 = 1e-5
