@@ -69,7 +69,24 @@ def density(r,r_s,rho_s,A):
   Evaluate density at radius r for a cusp-NFW density profile with scale radius
   r_s, scale density rho_s, and cusp coefficient A.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
+  Parameters:
+    
+    r: float or array
+      Radius from center of halo.
+      
+    r_s: float or array
+      Scale radius of halo.
+    
+    rho_s: float or array
+      Scale density of halo.
+      
+    A: float or array
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+  Returns:
+    
+    rho: float or array
+      Density at radius r.
   '''
   return __density(r/r_s,A/(rho_s*r_s**1.5)) * rho_s
 
@@ -78,7 +95,24 @@ def mass(r,r_s,rho_s,A):
   Evaluate mass enclosed within radius r for a cusp-NFW density profile with
   scale radius r_s, scale density rho_s, and cusp coefficient A.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
+  Parameters:
+    
+    r: float or array
+      Radius from center of halo.
+      
+    r_s: float or array
+      Scale radius of halo.
+    
+    rho_s: float or array
+      Scale density of halo.
+      
+    A: float or array
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+  Returns:
+    
+    M: float or array
+      Mass enclosed within radius r.
   '''
   return r_s**3*rho_s * __mass(r/r_s,A/(rho_s*r_s**1.5))
 
@@ -88,10 +122,29 @@ def veldisp2_r(r,r_s,rho_s,A,G=1.):
   cusp-NFW density profile with scale radius r_s, scale density rho_s, and cusp
   coefficient A. We assume an isotropic velocity distribution.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
-  
-  If G is not specified, we return sigma_r^2/G, which has dimensions of
-  mass/length.
+  Parameters:
+    
+    r: float or array
+      Radius from center of halo.
+      
+    r_s: float
+      Scale radius of halo.
+    
+    rho_s: float
+      Scale density of halo.
+      
+    A: float
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    G: float
+      Gravitational constant. If not specified, we return sigma_r^2/G, which
+      has dimensions of mass/length.
+    
+  Returns:
+    
+    sigma_r^2: float or array
+      Squared radial velocity dispersion at radius r. If G was not specified,
+      this is sigma_r^2/G instead.
   '''
   return G*rho_s*r_s**2 * __veldisp2_r(r/r_s,A/(rho_s*r_s**1.5))
 
@@ -101,10 +154,29 @@ def veldisp_r(r,r_s,rho_s,A,G=1.):
   density profile with scale radius r_s, scale density rho_s, and cusp
   coefficient A. We assume an isotropic velocity distribution.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
-  
-  If G is not specified, we return sigma_r/sqrt(G), which has dimensions of
-  sqrt(mass/length).
+  Parameters:
+    
+    r: float or array
+      Radius from center of halo.
+      
+    r_s: float
+      Scale radius of halo.
+    
+    rho_s: float
+      Scale density of halo.
+      
+    A: float
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    G: float
+      Gravitational constant. If not specified, we return sigma_r/sqrt(G),
+      which has dimensions of sqrt(mass/length).
+    
+  Returns:
+    
+    sigma_r: float or array
+      Radial velocity dispersion at radius r. If G was not specified, this is
+      sigma_r/sqrt(G) instead.
   '''
   return np.sqrt(veldisp2_r(r,r_s,rho_s,A,G=G))
 
@@ -114,15 +186,41 @@ def potential(r,r_s,rho_s,A,G=1.,zero_at_inf=False):
   profile with scale radius r_s, scale density rho_s, and cusp coefficient A.
   By default, we take the potential to be zero at r=0.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
-  
-  If G is not specified, we return Phi/G, which has dimensions of mass/length.
+  Parameters:
+    
+    r: float or array
+      Radius from center of halo.
+      
+    r_s: float
+      Scale radius of halo.
+    
+    rho_s: float
+      Scale density of halo.
+      
+    A: float
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    G: float
+      Gravitational constant. If not specified, we return Phi/G, which has
+      dimensions of mass/length.
+    
+    zero_at_inf: bool
+      If True, the zero point of energy is set so that Phi=0 at r=inf.
+      Default is zero_at_inf=False, in which case Phi=0 at r=0.
+    
+  Returns:
+    
+    Phi: float or array
+      Gravitational potential at radius r. If G was not specified, this is
+      Phi/G instead.
   '''
   return G*rho_s*r_s**2 * __potential(r/r_s,A/(rho_s*r_s**1.5),zero_at_inf=zero_at_inf)
 
 # distribution function
 
-def __df(e,y):
+def __df(e,y,zero_at_inf=False):
+  if zero_at_inf:
+    e = e + __potential_inf(y)
   step = 1.01 # step in factors of 1.01
   # get drho/dPhi
   xmax = 1e5
@@ -160,18 +258,43 @@ def __df(e,y):
   __f = np.diff(_fint)/np.diff(_e)
   return np.exp(np.interp(np.log(e),np.log(__e),np.log(__f),left=-np.inf,right=-np.inf))
 
-def df(E,r_s,rho_s,A,G=1.):
+def df(E,r_s,rho_s,A,G=1.,zero_at_inf=False):
   '''
   Evaluate the distribution function f(E) for a cusp-NFW density profile wit
   h scale radius r_s, scale density rho_s, and cusp coefficient A. We assume an
   isotropic velocity distribution.
   
-  This profile only makes sense if rho_s * r_s**1.5 >= A.
-  
-  If G is not specified, then we assume the first argument is E/G, which has
-  dimensions of mass/length, and we return G^1.5 f(E).
+  Parameters:
+    
+    E: float or array
+      Energy E. If G is not specified, this is assumed to be E/G instead.
+      
+    r_s: float
+      Scale radius of halo.
+    
+    rho_s: float
+      Scale density of halo.
+      
+    A: float
+      Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    G: float
+      Gravitational constant. If not specified, then we assume the first
+      argument is E/G, which has dimensions of mass/length, and we return
+      G^1.5 f(E).
+    
+    zero_at_inf: bool
+      If True, the zero point of energy is set so that the potential is zero at
+      r=inf. Default is zero_at_inf=False, in which case the potential is zero
+      at r=0.
+    
+  Returns:
+    
+    f: float or array
+      Distribution function f(E). If G was not specified, this is G^1.5 f(E)
+      instead.
   '''
-  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5)) / (G**1.5*r_s**3*rho_s**0.5)
+  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5),zero_at_inf=zero_at_inf) / (G**1.5*r_s**3*rho_s**0.5)
 
 # conversions from halo concentration
 
@@ -210,7 +333,6 @@ def __min_params(c):
 
 def scale_from_c(c,M,A,rho_vir,cmin_error=True):
   '''
-  
   Find the cusp-NFW profile scale parameters, given halo concentration c and
   mass M.
   
@@ -234,7 +356,6 @@ def scale_from_c(c,M,A,rho_vir,cmin_error=True):
     
     r_s, rho_s: floats
       The scale radius and scale density, respectively.
-  
   '''
   R = R_from_M(M,rho_vir)
   r_2 = R / c # r_{-2}
