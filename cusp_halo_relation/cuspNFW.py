@@ -168,10 +168,10 @@ def df(E,r_s,rho_s,A,G=1.):
   
   This profile only makes sense if rho_s * r_s**1.5 >= A.
   
-  If G is not specified, we assume the first argument is E/G, which has
-  dimensions of mass/length.
+  If G is not specified, then we assume the first argument is E/G, which has
+  dimensions of mass/length, and we return G^1.5 f(E).
   '''
-  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5))
+  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5)) / (G**1.5*r_s**3*rho_s**0.5)
 
 # conversions from halo concentration
 
