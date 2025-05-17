@@ -29,10 +29,11 @@ def __veldisp2_r(x,y):
 def __potential_smallx(x,y):
   return np.pi/x * ((2*x-y**2)*np.sqrt(x*(x+y**2)) + (4*x+y**2)*y**2*np.log((np.sqrt(x)+np.sqrt(x+y**2))/y))
 def __potential(x,y):
+  x = np.array(x)
   pot = np.zeros(np.shape(x))
-  small = x<1e-3
+  small = x <= 1e-3
   pot[small] = __potential_smallx(x[small],y)
-  xmin, xmax = max(1e-3,np.min(x)), np.max(x)
+  xmin, xmax = 1e-3, np.max(x)
   if xmax > xmin:
     Nx = int(np.round(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
     _x = np.geomspace(xmin,xmax,Nx)
