@@ -20,8 +20,9 @@ import cusp_halo_relation
 To quickly evaluate cusp parameters in warm dark matter models, create a `CuspHaloWDM` object:
 
 ```
-dark_matter_mass = 10. # dark matter particle mass in keV
-model = cusp_halo_relation.CuspHaloWDM(mX=dark_matter_mass)
+model = cusp_halo_relation.CuspHaloWDM(
+    mX=10., # dark matter particle mass in keV
+    )
 
 halo_mass = 1e9 # in solar mass
 redshift = 2.
@@ -36,9 +37,10 @@ By default we use [Planck 2018](https://arxiv.org/abs/1807.06209) cosmological p
 For more general dark matter models, create a `CuspHaloStandard` object instead, which allows passing a custom transfer function. See the docstring with `help(cusp_halo_relation.CuspHaloStandard)` (or in [cusp_halo_concordance.py](/cusp_halo_relation/cusp_halo_concordance.py)) for how to do this. For convenience, we also include a class `Cutoff` which includes some calculations to support cold dark matter models. For example, for a 100 GeV WIMP decoupling at 30 MeV:
 
 ```
-dark_matter_mass = 100e3 # in MeV
-decoupling_temperature = 30. # in MeV
-cutoff = cusp_halo_relation.Cutoff('G04',m=dark_matter_mass,Td=decoupling_temperature)
+cutoff = cusp_halo_relation.Cutoff('G04',
+    m=100e3, # dark matter particle mass in MeV
+    Td=30., # dark matter decoupling temperature in MeV
+    )
 model = cusp_halo_relation.CuspHaloStandard(cutoff=cutoff.transfer,include_baryons=False)
 ```
 
@@ -53,8 +55,7 @@ To evaluate the cusp-NFW density use `cusp_halo_relation.cuspNFW.density(r,rs,rh
 To obtain the scale radius and scale density in the first place, use `cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)`. This takes the halo mass `M`, concentration `c`, cusp coefficient `A`, and virial density `rho_vir`. For example, continuing the warm dark matter example above, we can evaluate the scale radius and density for the cusp-NFW profile of a halo with the predicted cusp coefficient and halo concentration at a given redshift:
 
 ```
-dark_matter_mass = 10. # dark matter particle mass in keV
-model = cusp_halo_relation.CuspHaloWDM(mX=dark_matter_mass)
+model = cusp_halo_relation.CuspHaloWDM(mX=10.) # 10 keV warm dark matter
 
 halo_mass = 1e9 # in solar mass
 redshift = 2.
