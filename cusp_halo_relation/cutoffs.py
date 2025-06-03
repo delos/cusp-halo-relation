@@ -199,3 +199,6 @@ class Cutoff(thermal_history.ThermalHistory):
     # analytic integral after table end
     length += fsl_analytic(self.m,a0,self.pc/a0,self.aeq,self.Heq,)
     return length
+  
+  def __call__(self,k):
+    return self.transfer(k)
