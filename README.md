@@ -5,7 +5,7 @@ Code for modeling the central prompt cusps of dark matter halos in accordance wi
 
 We require Python with `numpy` and `scipy`.
 
-## Usage:
+## Usage
 
 Clone or [download](/../../archive/refs/heads/main.zip) the repository. In Python, start with:
 
@@ -50,7 +50,11 @@ For a completely arbitrary cosmology, use `CuspHalo`, which takes the matter pow
 
 ### Using cuspy halo density profiles
 
-To evaluate the cusp-NFW density use `cusp_halo_relation.cuspNFW.density(r,rs,rhos,A)`, which returns the density at radius `r` given scale radius `rs`, scale density `rhos`, and cusp coefficient `A`. To evaluate the enclosed mass, use `cusp_halo_relation.cuspNFW.mass(r,rs,rhos,A)`.
+To evaluate the cusp-NFW density use `cusp_halo_relation.cuspNFW.density(r,rs,rhos,A)`, which returns the density at radius `r` given scale radius `rs`, scale density `rhos`, and cusp coefficient `A`. Other quantities are also available:
+- To evaluate the enclosed mass, use `cusp_halo_relation.cuspNFW.mass(r,rs,rhos,A)`.
+- To evaluate the gravitational potential, use `cusp_halo_relation.cuspNFW.potential(r,rs,rhos,A,G)`. Here `G` is the gravitational constant. There is also an optional argument `zero_at_inf`; if `False` (the default) the zero point of energy corresponds to the potential is at the center of the halo, while if `True` it is the potential at infinity.
+- To evaluate the radial velocity dispersion (assuming isotropic velocities), use `cusp_halo_relation.cuspNFW.veldisp_r(r,rs,rhos,A,G)`.
+- To evaluate the distribution function at energy `E` (assuming isotropic velocities), use `cusp_halo_relation.cuspNFW.df(E,rs,rhos,A,G)`. The optional argument `zero_at_inf` is also allowed here.
 
 To obtain the scale radius and scale density in the first place, use `cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)`. This takes the halo mass `M`, concentration `c`, cusp coefficient `A`, and virial density `rho_vir`. For example, continuing the warm dark matter example above, we can evaluate the scale radius and density for the cusp-NFW profile of a halo with the predicted cusp coefficient and halo concentration at a given redshift:
 
