@@ -37,11 +37,14 @@ By default we use [Planck 2018](https://arxiv.org/abs/1807.06209) cosmological p
 For more general dark matter models, create a `CuspHaloStandard` object instead, which allows passing a custom transfer function. See the docstring with `help(cusp_halo_relation.CuspHaloStandard)` (or in [cusp_halo_concordance.py](/cusp_halo_relation/cusp_halo_concordance.py)) for how to do this. For convenience, we also include a class `Cutoff` which includes some calculations to support cold dark matter models. For example, for a 100 GeV WIMP decoupling at 30 MeV:
 
 ```
-cutoff = cusp_halo_relation.Cutoff('G04',
-    m=100e3, # dark matter particle mass in MeV
-    Td=30., # dark matter decoupling temperature in MeV
+model = cusp_halo_relation.CuspHaloStandard(
+    cutoff=cusp_halo_relation.Cutoff(
+        'G04', # Green, Hofmann, & Schwarz (2004) transfer function
+        m=100e3, # dark matter particle mass in MeV
+        Td=30., # dark matter decoupling temperature in MeV
+        ),
+    include_baryons=False, # baryons do not contribute to halos and cusps
     )
-model = cusp_halo_relation.CuspHaloStandard(cutoff=cutoff.transfer,include_baryons=False)
 ```
 
 Here we use the WIMP transfer function from [Green, Hofmann, & Schwarz (2004)](https://arxiv.org/abs/astro-ph/0309621), and with `include_baryons=False` we assume that only dark matter (and not baryons) cluster and contribute to halos and cusps. It is also possible to specify a custom free-streaming transfer function and take advantage of a supplied calculation of the free-streaming scale that properly accounts for the Standard Model thermal history; see `help(cusp_halo_relation.Cutoff)` (or [cutoffs.py](/cusp_halo_relation/cutoffs.py)).
