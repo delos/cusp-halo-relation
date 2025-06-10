@@ -6,6 +6,8 @@ from scipy.integrate import cumtrapz, simpson
 
 def __density(x,y):
   return np.sqrt(x+y**2)/(x**1.5*(1+x)**2)
+def __density_slope(x,y):
+  return 0.5*(-7. + 4./(1. + x) + x/(x + y**2))
 def __mass_midy(y,x):
   return 2*np.arcsinh(np.sqrt(x)/y) - (2 - y**2)*np.arctanh(np.sqrt(x*(1 - y**2)/(x + y**2)))/np.sqrt(1 - y**2) - np.sqrt(x*(x + y**2))/(1 + x)
 def __mass_smally(y,x):
