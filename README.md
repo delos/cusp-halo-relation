@@ -1,5 +1,5 @@
 # cusp-halo-relation
-Code for modeling the central prompt cusps of dark matter halos in accordance with the methodology described by [Delos (2025)](https://arxiv.org/abs/2506.xxxxx).
+Code for modeling the central prompt cusps of dark matter halos in accordance with the methodology described by [Delos (2025)](https://arxiv.org/abs/2506.03240).
 
 ## Requirements
 
@@ -79,13 +79,13 @@ See `help(cusp_halo_relation.cuspNFW)` (or [cuspNFW.py](/cusp_halo_relation/cusp
 ## Examples
 
 We include in the [examples](/examples/) subdirectory several examples of how to use the code.
-- [wdm_cusps.py](/examples/wdm_cusps.py): generates figures 14 and 15 of [Delos (2025)](https://arxiv.org/abs/2506.xxxxx), which show how the central cusps of halos of fixed mass depend on the dark matter particle mass.
-- [wdm_profiles.py](/examples/wdm_profiles.py): generates figure 17 of [Delos (2025)](https://arxiv.org/abs/2506.xxxxx), which shows examples of cusp-NFW density profiles with different parameters.
-- [stability.py](/examples/stability.py): generates figure 24 of [Delos (2025)](https://arxiv.org/abs/2506.xxxxx), which shows the distribution functions of halos with cusp-NFW density profiles and isotropic velocity distributions.
+- [wdm_cusps.py](/examples/wdm_cusps.py): generates figures 14 and 15 of [Delos (2025)](https://arxiv.org/abs/2506.03240), which show how the central cusps of halos of fixed mass depend on the dark matter particle mass.
+- [wdm_profiles.py](/examples/wdm_profiles.py): generates figure 17 of [Delos (2025)](https://arxiv.org/abs/2506.03240), which shows examples of cusp-NFW density profiles with different parameters.
+- [stability.py](/examples/stability.py): generates figure 24 of [Delos (2025)](https://arxiv.org/abs/2506.03240), which shows the distribution functions of halos with cusp-NFW density profiles and isotropic velocity distributions.
 
 ## Acknowledgement
 
-If you use this code, please cite the paper [Delos (2025)](https://arxiv.org/abs/2506.xxxxx). Other citations are likely also appropriate, including
+If you use this code, please cite the paper [Delos (2025)](https://arxiv.org/abs/2506.03240). Other citations are likely also appropriate, including
 
 * [Vogel & Abazajian (2023)](https://arxiv.org/abs/2210.10753), if you use the `'VA23'` warm dark matter transfer function.
 * [Viel et al. (2005)](https://arxiv.org/abs/astro-ph/0501562), if you use the `'V05'` warm dark matter transfer function.
