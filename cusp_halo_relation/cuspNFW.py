@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import root_scalar
 from scipy.integrate import cumtrapz, simpson
+from scipy.interpolate import CubicSpline
 
 # dimensionless radial profiles
 
@@ -52,7 +53,7 @@ def __potential(x,y,zero_at_inf=False):
       _m = __mass(_x,y)
       _pot_0 = __potential_smallx(_x[0],y)
       _pot = cumtrapz(_m/_x,x=np.log(_x),initial=0) + _pot_0
-      pot[~small] = np.exp(np.interp(np.log(x[~small]),np.log(_x),np.log(_pot),left=np.nan,right=np.nan))
+      pot[~small] = np.exp(CubicSpline(np.log(_x),np.log(_pot),extrapolate=False)(np.log(x[~small])))
   if zero_at_inf:
     return pot - __potential_inf(y)
   return pot
