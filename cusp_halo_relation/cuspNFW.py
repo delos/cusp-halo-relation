@@ -367,12 +367,12 @@ def scale_from_c(c,M,A,rho_vir,cmin_error=True):
   if M*rho_vir/A**2 < __min_params(c):
     if cmin_error:
       raise Exception('M*rho_vir/A**2=%.3e must be >%.3e for c=%.2f.'%(M*rho_vir/A**2,__min_params(c),c))
-    else:
-      c = c_min(M,A,rho_vir)
-      r_2 = R / c # r_{-2}
-  rho_s = root_scalar(lambda rho_s: np.log(mass(R,rs_from_r2(r_2,rho_s,A),rho_s,A)/M),
-                     bracket=[A/(2*r_2)**1.5,__rhos_from_c_NFW(c,rho_vir)]).root
-  r_s = rs_from_r2(r_2,rho_s,A)
+    r_s = 2*R/c_min(M,A,rho_vir)
+    rho_s = A/r_s**1.5
+  else:
+    rho_s = root_scalar(lambda rho_s: np.log(mass(R,rs_from_r2(r_2,rho_s,A),rho_s,A)/M),
+                       bracket=[A/(2*r_2)**1.5,__rhos_from_c_NFW(c,rho_vir)]).root
+    r_s = rs_from_r2(r_2,rho_s,A)
   return r_s, rho_s
 
 def A_max(c,M,rho_vir):
