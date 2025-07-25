@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import root_scalar
-from scipy.integrate import cumtrapz, simpson
+from scipy.integrate import cumulative_trapezoid, simpson
 from scipy.interpolate import CubicSpline
 
 # dimensionless radial profiles
@@ -28,7 +28,7 @@ def __veldisp2_r(x,y):
   _x = np.geomspace(xmin,xmax,Nx)
   _p, _m = __density(_x,y), __mass(_x,y)
   _ps2_0 = 4*np.pi*__veldisp2_r_NFW_largex(_x[-1]) * _p[-1]
-  _ps2 = cumtrapz(-(_p*_m/_x)[::-1],x=np.log(_x)[::-1],initial=0)[::-1] + _ps2_0
+  _ps2 = cumulative_trapezoid(-(_p*_m/_x)[::-1],x=np.log(_x)[::-1],initial=0)[::-1] + _ps2_0
   return np.exp(np.interp(np.log(x),np.log(_x),np.log(_ps2/_p),left=np.nan,right=np.nan))
 def __potential_NFW_smallx(x):
   return x/2. - x**2/3. + x**3/4. - x**4/5. + x**5/6. - x**6/7.
@@ -52,7 +52,7 @@ def __potential(x,y,zero_at_inf=False):
       _x = np.geomspace(xmin,xmax,Nx)
       _m = __mass(_x,y)
       _pot_0 = __potential_smallx(_x[0],y)
-      _pot = cumtrapz(_m/_x,x=np.log(_x),initial=0) + _pot_0
+      _pot = cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0) + _pot_0
       pot[~small] = np.exp(CubicSpline(np.log(_x),np.log(_pot),extrapolate=False)(np.log(x[~small])))
   if zero_at_inf:
     return pot - __potential_inf(y)
