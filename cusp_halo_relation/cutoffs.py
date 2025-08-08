@@ -158,7 +158,7 @@ class Cutoff(thermal_history.ThermalHistory):
         Td = self.T_at_a(ad)
       elif Hd is not None:
         Td = self.T_at_H(Hd)
-      self.m, self.Td, self.ad, self.Hd, self.pd = m, Td, self.a(Td), self.H(Td), pd
+      self.m, self.Td, self.ad, self.Hd, self.pd = m, Td, self.a(Td), self.H(Td), (pd or Td)
       if model == 'fs':
         self.pc = self.pd*self.ad # comoving momentum
         # prepare integrand:
