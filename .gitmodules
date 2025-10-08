@@ -1,0 +1,3 @@
+[submodule "cusp_halo_relation/mpk_helpers"]
+	path = cusp_halo_relation/mpk_helpers
+	url = https://github.com/delos/mpk_helpers.git
