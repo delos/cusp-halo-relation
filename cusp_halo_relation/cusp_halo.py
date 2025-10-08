@@ -41,8 +41,9 @@ class CuspHalo(object):
       clustering. This is used for halo masses. The density should be specified
       when a=1. Default is rho=1, so results are in units of the mean density.
       
-    amax: float
-      Largest scale factor we are interested in. Default is 1.
+    amin, amax: floats
+      Smallest and largest scale factors we are interested in. Default is to
+      select amin automatically and amax=1.
       
     model_params: dict
       Parameters of the model, including:
@@ -60,7 +61,7 @@ class CuspHalo(object):
   
   '''
   
-  def __init__(self,k,P,growth=1.,rho=1.,amax=1.,model_params=default_params,verbose=True):
+  def __init__(self,k,P,growth=1.,rho=1.,amin=None,amax=1.,model_params=default_params,verbose=True):
     self.k1 = k
     self.P1 = P
     self.rho1 = rho
@@ -68,12 +69,9 @@ class CuspHalo(object):
     self.verbose = verbose
     
     # set up the growth function
-    self.a_min = 0.05/sigmaj(0,k,P) # this should be long before any peaks collapse
+    self.a_min = amin or 0.05/sigmaj(0,k,P) # this should be long before any peaks collapse
     self.a_max = amax
     self.__prepare_growth(growth,self.a_min,self.a_max)
-    
-    # scale factor when sigma_0=1
-    self.a0 = np.exp(np.interp(0.,self.__tab_lns0,self.__tab_lna,left=np.nan,right=np.nan))
     
     # prefactors for cusp-halo results
     self.A_pre = self.model_params['A_coef']*(self.model_params['A_coef']/(self.model_params['A_m_coef']*self.model_params['m_coef']**self.model_params['A_m_index']))**(1./(2.*self.model_params['A_m_index']-1.))
@@ -97,6 +95,7 @@ class CuspHalo(object):
         self.__tab_s0 = sigmaj(0,ka,Pka,axis=0)
         self.__tab_s1 = sigmaj(1,ka,Pka,axis=0)
         self.__tab_s2 = sigmaj(2,ka,Pka,axis=0)
+        
       elif len(signature(growth).parameters) == 1:
         if self.verbose:
           print('CuspHalo: using growth function D(a)')
@@ -116,6 +115,19 @@ class CuspHalo(object):
     self.__tab_lns0 = np.log(self.__tab_s0)
     self.__tab_lns1 = np.log(self.__tab_s1)
     self.__tab_lns2 = np.log(self.__tab_s2)
+    
+    # scale factor when sigma_0=1
+    self.a0 = np.exp(np.interp(0.,self.__tab_lns0,self.__tab_lna,left=np.nan,right=np.nan))
+    
+    # power when sigma_0=1
+    self.k0 = self.k1 / self.a0
+    if callable(growth):
+      if len(signature(growth).parameters) == 2:
+        self.P0 = (growth(self.a0,self.k1)/growth(1.,self.k1))**2 * self.P1
+      elif len(signature(growth).parameters) == 1:
+        self.P0 = (growth(self.a0)/growth(1.))**2 * self.P1
+    else:
+      self.P0 = self.a0**2 * self.P1
   
   def __prepare_cusps(self,growth,amin,amax):
     self.__tab_invMreduced = self.__tab_s0**(3./(2*self.model_params['A_m_index']-1.)) * self.mass_growth(self.__tab_a)
