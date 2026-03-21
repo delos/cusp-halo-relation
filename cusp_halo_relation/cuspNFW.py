@@ -5,7 +5,7 @@ from scipy.interpolate import CubicSpline
 
 # dimensionless radial profiles
 
-def __density(x,y):
+def __density(x,y,z=0):
   return np.sqrt(x+y**2)/(x**1.5*(1+x)**2)
 def __density_slope(x,y):
   return 0.5*(-7. + 4./(1. + x) + x/(x + y**2))
@@ -67,7 +67,7 @@ def __potential_inf(y):
 
 # radial profiles
 
-def density(r,r_s,rho_s,A):
+def density(r,r_s,rho_s,A,r_c=0.):
   '''
   Evaluate density at radius r for a cusp-NFW density profile with scale radius
   r_s, scale density rho_s, and cusp coefficient A.
@@ -85,13 +85,16 @@ def density(r,r_s,rho_s,A):
       
     A: float or array
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+      
+    r_c: float or array
+      Radius of the phase-space core.
     
   Returns:
     
     rho: float or array
       Density at radius r.
   '''
-  return __density(r/r_s,A/(rho_s*r_s**1.5)) * rho_s
+  return __density(r/r_s,A/(rho_s*r_s**1.5),r_c/r_s) * rho_s
 
 def mass(r,r_s,rho_s,A):
   '''
@@ -395,7 +398,51 @@ def c_min(M,A,rho_vir):
   Here rho_vir is the virial density.
   '''
   params = M*rho_vir/A**2
-  if params >= 16*np.pi/3.:
+  if params > 16*np.pi/3.:
     return 0.
   lnc = root_scalar(lambda lnc: np.log(__min_params(np.exp(lnc))/params),x0=0.,x1=1.).root
   return np.exp(lnc)
+
+# phase-space core
+
+def rc_from_fmax(fmax,r_s,rho_s,A,G=1.,prefactor=3e-5):
+  '''
+  Evaluate the core radius from phase-space conservation.
+  
+  Parameters:
+    
+    fmax: float
+      Maximum phase-space density f_max. If G is not specified, this is assumed
+      to be G^1.5 f_max.
+      
+    r_s: float
+      Scale radius of halo.
+    
+    rho_s: float
+      Scale density of halo.
+      
+    A: float
+      Cusp coefficient. The profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    G: float
+      Gravitational constant. If not specified, then we assume the first
+      argument is G^1.5 f_max, which has dimensions of mass/length, and we return
+      G^1.5 f(E).
+    
+    prefactor: float
+      Prefactor in the "phase-space barrier" from arXiv:2207.05082. Default is
+      prefactor=3e-5 (see appendix C of arXiv:2207.05082).
+    
+  Returns:
+    
+    r_c: float
+      Core radius.
+  '''
+  target = prefactor * G**-3 * fmax**-2 / (rho_s * r_s**6)
+  y = A / (rho_s * r_s**1.5)
+  fun = lambda lnx: np.log(__density(np.exp(lnx), y) * np.exp(6*lnx) / target)
+  try:
+    lnx = root_scalar(fun, bracket=[-100., 100.]).root
+  except ValueError:
+    return 0. if fun(0.) > 0. else np.inf
+  return np.exp(lnx) * r_s
