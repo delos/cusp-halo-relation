@@ -74,8 +74,8 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
 
     model_params: dict
       Parameters of the cusp-halo model (see CuspHalo). Default is the standard
-      set; pass e.g. {**default_params, 'growth_history':'eps'} to use the EPS
-      main-progenitor growth history.
+      set; pass e.g. {**default_params, 'growth_model':'eps'} to use the EPS
+      main-progenitor growth model.
 
     verbose: boolean
       Default True. Change to False to suppress messages.
@@ -150,17 +150,20 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     '''
     return rhoCrit_h2 * self.h**2 * (self.OmegaM*a**-3 + (1.-self.OmegaM))
     
-  def m_at_z(self,M,z):
-    '''Predicted cusp mass m for a halo of mass M at redshift z.'''
-    return self.m(M,1./(1.+z))
-  
-  def A_at_z(self,M,z):
-    '''Predicted cusp A for a halo of mass M at redshift z.'''
-    return self.A(M,1./(1.+z))
-  
-  def c_at_z(self,M=None,z=None):
+  def m_at_z(self,M,z,growth_model=None):
+    '''Predicted cusp mass m for a halo of mass M at redshift z. growth_model
+    overrides the configured main-progenitor growth model.'''
+    return self.m(M,1./(1.+z),growth_model=growth_model)
+
+  def A_at_z(self,M,z,growth_model=None):
+    '''Predicted cusp A for a halo of mass M at redshift z. growth_model
+    overrides the configured main-progenitor growth model.'''
+    return self.A(M,1./(1.+z),growth_model=growth_model)
+
+  def c_at_z(self,M=None,z=None,growth_model=None,concentration_model=None):
     '''
     Predicted concentration parameter of a halo of mass M at redshift z.
+    growth_model and concentration_model override the configured defaults.
 
     If the mass M is omitted (e.g. c_at_z(z=...) or a single positional
     redshift), the mass-independent exp+L13 characteristic concentration of
@@ -172,7 +175,7 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       return self.characteristic_c(1./(1.+M))
     if M is None: # only the redshift was supplied (e.g. c_at_z(z=...))
       return self.characteristic_c(1./(1.+z))
-    return self.c(M,1./(1.+z))
+    return self.c(M,1./(1.+z),growth_model=growth_model,concentration_model=concentration_model)
   
   def rhoCrit_at_z(self,z):
     '''
@@ -234,8 +237,8 @@ class CuspHaloWDM(CuspHaloStandard):
 
     model_params: dict
       Parameters of the cusp-halo model (see CuspHalo). Default is the standard
-      set; pass e.g. {**default_params, 'growth_history':'eps'} to use the EPS
-      main-progenitor growth history.
+      set; pass e.g. {**default_params, 'growth_model':'eps'} to use the EPS
+      main-progenitor growth model.
 
     verbose: boolean
       Default True. Change to False to suppress messages.
