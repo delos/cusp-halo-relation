@@ -29,7 +29,7 @@ def concentration_L13_NFW(rho_over_rho0,M_over_M0,Dvir=200.,C=776.):
       density at the "current" time (when we want to evaluate the halo
       concentration). Must be in decreasing order.
       
-    M: arraty
+    M: array
       Halo mass over the same range of times, specified in units of the halo
       mass at the "current" time. Must be in increasing order.
     

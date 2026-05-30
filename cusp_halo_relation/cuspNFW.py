@@ -5,28 +5,49 @@ from scipy.interpolate import CubicSpline
 
 # dimensionless radial profiles
 
-def __density(x,y,z=0):
-  return np.sqrt(x+y**2)/(x**1.5*(1+x)**2)
-def __density_slope(x,y):
-  return 0.5*(-7. + 4./(1. + x) + x/(x + y**2))
+def __density(x,y,z=0.):
+  xt = (x**2+4*z**2)**1.5 / (x**2+8*z**2+1e-300) # guards against 0/0
+  return np.sqrt(xt+y**2)/(xt**1.5*(1+xt)**2)
+def __density_slope(x,y,z=0.):
+  xt = (x**2+4*z**2)**1.5 / (x**2+8*z**2+1e-300)
+  s = 0.5*(-7. + 4./(1. + xt) + xt/(xt + y**2 + 1e-300))
+  dxt = x**2*(x**2 + 16*z**2) / ((x**2 + 4*z**2)*(x**2 + 8*z**2) + 1e-300) # d ln xt / d ln x
+  return s * dxt
 def __mass_midy(y,x):
   return 2*np.arcsinh(np.sqrt(x)/y) - (2 - y**2)*np.arctanh(np.sqrt(x*(1 - y**2)/(x + y**2)))/np.sqrt(1 - y**2) - np.sqrt(x*(x + y**2))/(1 + x)
 def __mass_smally(y,x):
   return np.log(1+x) - x*(1-0.5*y**2)/(1.+x)
 def __mass_largey(y,x):
   return np.sqrt(x)*(-30 - 10*x*(7 - y) + x**2*(-37 + y*(4 + 3*y)))/(15.*(1 + x)**2.5) + 2*np.arcsinh(np.sqrt(x))
-def __mass(x,y):
-  x,y = np.broadcast_arrays(x,y)
-  y = y.astype(float)
-  return 4*np.pi*np.piecewise(y,[(0.<=y)&(y<0.001),(0.001<=y)&(y<=0.999),(0.999<y)&(y<1.001)],[__mass_smally,__mass_midy,__mass_largey,np.nan],x)
+def __mass(x,y,z=0.):
+  if z == 0.:
+    x,y = np.broadcast_arrays(x,y)
+    y = y.astype(float)
+    return 4*np.pi*np.piecewise(y,[(0.<=y)&(y<0.001),(0.001<=y)&(y<=0.999),(0.999<y)&(y<1.001)],[__mass_smally,__mass_midy,__mass_largey,np.nan],x)
+  # numerical for z > 0
+  _shape = np.shape(x)
+  x = np.atleast_1d(np.array(x,dtype=float))
+  _M = np.zeros_like(x)
+  pos = x > 0
+  if not np.any(pos):
+    return _M.reshape(_shape)
+  xmin = min(float(z)/100., float(np.min(x[pos]))/2., 1e-4)
+  xmin = max(xmin, 1e-10)
+  xmax = float(np.max(x))
+  Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
+  _x = np.geomspace(xmin,xmax,Nx)
+  _p = __density(_x,y,z)
+  _m = cumulative_trapezoid(4*np.pi*_p*_x**3,x=np.log(_x),initial=0)
+  _M[pos] = np.interp(np.log(x[pos]),np.log(_x),_m)
+  return _M.reshape(_shape)
 def __veldisp2_r_NFW_largex(x):
   logx = np.log(x)
   return (-3./16+logx/4)/x + (69./200+logx/10)/x**2 + (-97./1200-logx/20)/x**3 + (71./3675+logx/35)/x**4 + (-1./3136-logx/56)/x**5 + (-1271./211680+logx/84)/x**6
-def __veldisp2_r(x,y):
-  xmin, xmax = np.min(x), 30.*max(np.max(x),1.)
+def __veldisp2_r(x,y,z=0.):
+  xmin, xmax = np.min(x), 30.*max(np.max(x),1.,float(z))
   Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
   _x = np.geomspace(xmin,xmax,Nx)
-  _p, _m = __density(_x,y), __mass(_x,y)
+  _p, _m = __density(_x,y,z), __mass(_x,y,z)
   _ps2_0 = 4*np.pi*__veldisp2_r_NFW_largex(_x[-1]) * _p[-1]
   _ps2 = cumulative_trapezoid(-(_p*_m/_x)[::-1],x=np.log(_x)[::-1],initial=0)[::-1] + _ps2_0
   return np.exp(np.interp(np.log(x),np.log(_x),np.log(_ps2/_p),left=np.nan,right=np.nan))
@@ -38,32 +59,59 @@ def __potential_NFW(x):
   return 4*np.pi*np.piecewise(x,[x<=1e-3],[__potential_NFW_smallx,__potential_NFW_largex])
 def __potential_smallx(x,y):
   return np.pi/x * ((2*x-y**2)*np.sqrt(x*(x+y**2)) + (4*x+y**2)*y**2*np.log((np.sqrt(x)+np.sqrt(x+y**2))/y))
-def __potential(x,y,zero_at_inf=False):
+def __potential(x,y,z=0.,zero_at_inf=False):
   x = np.array(x).astype(float)
-  if y == 0.:
-    pot = __potential_NFW(x)
+  if z == 0.:
+    if y == 0.:
+      pot = __potential_NFW(x)
+    else:
+      pot = np.zeros(np.shape(x))
+      small = x <= 1e-3
+      pot[small&(x>0.)] = __potential_smallx(x[small&(x>0.)],y)
+      xmin, xmax = 1e-3, np.max(x)
+      if xmax > xmin:
+        Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
+        _x = np.geomspace(xmin,xmax,Nx)
+        _m = __mass(_x,y)
+        _pot_0 = __potential_smallx(_x[0],y)
+        _pot = cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0) + _pot_0
+        pot[~small] = np.exp(CubicSpline(np.log(_x),np.log(_pot),extrapolate=False)(np.log(x[~small])))
   else:
+    # z > 0: numerical, anchored by Phi ~ (2pi/3) rho_0 x^2 at small x
     pot = np.zeros(np.shape(x))
-    small = x <= 1e-3
-    pot[small&(x>0.)] = __potential_smallx(x[small&(x>0.)],y)
-    xmin, xmax = 1e-3, np.max(x)
-    if xmax > xmin:
+    pos = x > 0
+    if np.any(pos):
+      _p0 = __density(0.,y,z)
+      xmin = min(float(z)/100., 1e-4, float(np.min(x[pos]))/2.)
+      xmin = max(xmin, 1e-10)
+      xmax = max(float(np.max(x)), 10.)
       Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
       _x = np.geomspace(xmin,xmax,Nx)
-      _m = __mass(_x,y)
-      _pot_0 = __potential_smallx(_x[0],y)
+      _m = __mass(_x,y,z)
+      _pot_0 = (2*np.pi/3.)*_p0*xmin**2
       _pot = cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0) + _pot_0
-      pot[~small] = np.exp(CubicSpline(np.log(_x),np.log(_pot),extrapolate=False)(np.log(x[~small])))
+      pot[pos] = np.exp(CubicSpline(np.log(_x),np.log(_pot),extrapolate=False)(np.log(x[pos])))
   if zero_at_inf:
-    return pot - __potential_inf(y)
+    return pot - __potential_inf(y,z)
   return pot
 def __potential_inf_midy(y):
   return 1. - 0.5*y**2/np.sqrt(1.-y**2) * np.log(2.*(1.-np.sqrt(1.-y**2))/y**2 - 1.)
 def __potential_inf_largey(y):
   return 2./3 * (1.+2*y)
-def __potential_inf(y):
-  y = np.array(y).astype(float)
-  return 4*np.pi*np.piecewise(y,[(0.<=y)&(y<0.0001),(0.0001<=y)&(y<=0.9999),(0.9999<y)&(y<1.0001)],[1.,__potential_inf_midy,__potential_inf_largey,np.nan])
+def __potential_inf(y,z=0.):
+  if z == 0.:
+    y = np.array(y).astype(float)
+    return 4*np.pi*np.piecewise(y,[(0.<=y)&(y<0.0001),(0.0001<=y)&(y<=0.9999),(0.9999<y)&(y<1.0001)],[1.,__potential_inf_midy,__potential_inf_largey,np.nan])
+  # numerical for z > 0
+  xmin = min(float(z)/100., 1e-4)
+  xmin = max(xmin, 1e-10)
+  xmax = 1e5
+  Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(1.02))) # step in factors of 1.02
+  _x = np.geomspace(xmin,xmax,Nx)
+  _m = __mass(_x,y,z)
+  _p0 = __density(0.,y,z)
+  _pot_0 = (2*np.pi/3.)*_p0*xmin**2
+  return cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0)[-1] + _pot_0
 
 # radial profiles
 
@@ -96,7 +144,7 @@ def density(r,r_s,rho_s,A,r_c=0.):
   '''
   return __density(r/r_s,A/(rho_s*r_s**1.5),r_c/r_s) * rho_s
 
-def mass(r,r_s,rho_s,A):
+def mass(r,r_s,rho_s,A,r_c=0.):
   '''
   Evaluate mass enclosed within radius r for a cusp-NFW density profile with
   scale radius r_s, scale density rho_s, and cusp coefficient A.
@@ -115,14 +163,17 @@ def mass(r,r_s,rho_s,A):
     A: float or array
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
     
+    r_c: float or array
+      Radius of the phase-space core.
+    
   Returns:
     
     M: float or array
       Mass enclosed within radius r.
   '''
-  return r_s**3*rho_s * __mass(r/r_s,A/(rho_s*r_s**1.5))
+  return r_s**3*rho_s * __mass(r/r_s,A/(rho_s*r_s**1.5),r_c/r_s)
 
-def veldisp2_r(r,r_s,rho_s,A,G=1.):
+def veldisp2_r(r,r_s,rho_s,A,r_c=0.,G=1.):
   '''
   Evaluate squared radial velocity dispersion, sigma_r^2, at radius r for a
   cusp-NFW density profile with scale radius r_s, scale density rho_s, and cusp
@@ -142,6 +193,9 @@ def veldisp2_r(r,r_s,rho_s,A,G=1.):
     A: float
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
     
+    r_c: float
+      Radius of the phase-space core.
+    
     G: float
       Gravitational constant. If not specified, we return sigma_r^2/G, which
       has dimensions of mass/length.
@@ -152,9 +206,9 @@ def veldisp2_r(r,r_s,rho_s,A,G=1.):
       Squared radial velocity dispersion at radius r. If G was not specified,
       this is sigma_r^2/G instead.
   '''
-  return G*rho_s*r_s**2 * __veldisp2_r(r/r_s,A/(rho_s*r_s**1.5))
+  return G*rho_s*r_s**2 * __veldisp2_r(r/r_s,A/(rho_s*r_s**1.5),r_c/r_s)
 
-def veldisp_r(r,r_s,rho_s,A,G=1.):
+def veldisp_r(r,r_s,rho_s,A,r_c=0.,G=1.):
   '''
   Evaluate radial velocity dispersion sigma_r at radius r for a cusp-NFW
   density profile with scale radius r_s, scale density rho_s, and cusp
@@ -174,6 +228,9 @@ def veldisp_r(r,r_s,rho_s,A,G=1.):
     A: float
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
     
+    r_c: float
+      Radius of the phase-space core.
+    
     G: float
       Gravitational constant. If not specified, we return sigma_r/sqrt(G),
       which has dimensions of sqrt(mass/length).
@@ -184,9 +241,9 @@ def veldisp_r(r,r_s,rho_s,A,G=1.):
       Radial velocity dispersion at radius r. If G was not specified, this is
       sigma_r/sqrt(G) instead.
   '''
-  return np.sqrt(veldisp2_r(r,r_s,rho_s,A,G=G))
+  return np.sqrt(veldisp2_r(r,r_s,rho_s,A,r_c=r_c,G=G))
 
-def potential(r,r_s,rho_s,A,G=1.,zero_at_inf=False):
+def potential(r,r_s,rho_s,A,r_c=0.,G=1.,zero_at_inf=False):
   '''
   Evaluate gravitational potential Phi at radius r for a cusp-NFW density
   profile with scale radius r_s, scale density rho_s, and cusp coefficient A.
@@ -206,6 +263,9 @@ def potential(r,r_s,rho_s,A,G=1.,zero_at_inf=False):
     A: float
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
     
+    r_c: float
+      Radius of the phase-space core.
+    
     G: float
       Gravitational constant. If not specified, we return Phi/G, which has
       dimensions of mass/length.
@@ -220,28 +280,35 @@ def potential(r,r_s,rho_s,A,G=1.,zero_at_inf=False):
       Gravitational potential at radius r. If G was not specified, this is
       Phi/G instead.
   '''
-  return G*rho_s*r_s**2 * __potential(r/r_s,A/(rho_s*r_s**1.5),zero_at_inf=zero_at_inf)
+  return G*rho_s*r_s**2 * __potential(r/r_s,A/(rho_s*r_s**1.5),z=r_c/r_s,zero_at_inf=zero_at_inf)
 
 # distribution function
 
-def __df(e,y,zero_at_inf=False):
+def __df(e,y,z=0.,zero_at_inf=False):
   if zero_at_inf:
-    e = e + __potential_inf(y)
+    e = e + __potential_inf(y,z)
   step = 1.01 # step in factors of 1.01
   # get drho/dPhi
   xmax = 1e5
-  xmin = 9./(256.*np.pi**2) * np.min(e)**2 / step**3
+  if z == 0.:
+    xmin = 9./(256.*np.pi**2) * np.min(e)**2 / step**3
+  else:
+    # z > 0: Phi ~ (2pi/3) rho_0 x^2, so x ~ sqrt(e / ((2pi/3) rho_0))
+    _p0 = __density(0.,y,z)
+    xmin = np.sqrt(np.min(e) / ((2*np.pi/3.)*_p0)) / step**2
+    xmin = max(xmin, 1e-10)
   Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(step)))
   _x = np.geomspace(xmin,xmax,Nx)
-  _p = __density(_x,y)
-  _P = __potential(_x,y)
+  _p = __density(_x,y,z)
+  _P = __potential(_x,y,z)
   __P = np.sqrt(_P[1:]*_P[:-1])
   __dpdP = np.sqrt(_p[1:]*_p[:-1]/(_P[1:]*_P[:-1])) * np.diff(np.log(_p))/np.diff(np.log(_P))
   # choose range of energies
   # (we log-space in difference from 0 and from inf, whichever is smaller)
+  Pinf = __potential_inf(y,z)
   emin, emax = np.min(e)/step, min(np.max(e)*step,__P[-1]/step)
-  emidL = 0.5*__potential_inf(y)/np.sqrt(step)
-  emidU = 0.5*__potential_inf(y)*np.sqrt(step)
+  emidL = 0.5*Pinf/np.sqrt(step)
+  emidU = 0.5*Pinf*np.sqrt(step)
   if emin <= emidL:
     NeL = 1+int(np.ceil(np.log(emidL/emin)/np.log(step)))
     _eL = np.geomspace(emin,emidL,NeL)
@@ -264,10 +331,10 @@ def __df(e,y,zero_at_inf=False):
   __f = np.diff(_fint)/np.diff(_e)
   return np.exp(np.interp(np.log(e),np.log(__e),np.log(__f),left=-np.inf,right=-np.inf))
 
-def df(E,r_s,rho_s,A,G=1.,zero_at_inf=False):
+def df(E,r_s,rho_s,A,r_c=0.,G=1.,zero_at_inf=False):
   '''
-  Evaluate the distribution function f(E) for a cusp-NFW density profile wit
-  h scale radius r_s, scale density rho_s, and cusp coefficient A. We assume an
+  Evaluate the distribution function f(E) for a cusp-NFW density profile with
+  scale radius r_s, scale density rho_s, and cusp coefficient A. We assume an
   isotropic velocity distribution.
   
   Parameters:
@@ -283,6 +350,9 @@ def df(E,r_s,rho_s,A,G=1.,zero_at_inf=False):
       
     A: float
       Cusp coefficient. This profile only makes sense if rho_s * r_s**1.5 >= A.
+    
+    r_c: float
+      Radius of the phase-space core.
     
     G: float
       Gravitational constant. If not specified, then we assume the first
@@ -300,7 +370,7 @@ def df(E,r_s,rho_s,A,G=1.,zero_at_inf=False):
       Distribution function f(E). If G was not specified, this is G^1.5 f(E)
       instead.
   '''
-  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5),zero_at_inf=zero_at_inf) / (G**1.5*r_s**3*rho_s**0.5)
+  return __df(E/(G*rho_s*r_s**2),A/(rho_s*r_s**1.5),z=r_c/r_s,zero_at_inf=zero_at_inf) / (G**1.5*r_s**3*rho_s**0.5)
 
 # conversions from halo concentration
 
@@ -374,7 +444,7 @@ def scale_from_c(c,M,A,rho_vir,cmin_error=True):
     rho_s = A/r_s**1.5
   else:
     rho_s = root_scalar(lambda rho_s: np.log(mass(R,rs_from_r2(r_2,rho_s,A),rho_s,A)/M),
-                       bracket=[A/(2*r_2)**1.5,__rhos_from_c_NFW(c,rho_vir)]).root
+                       bracket=[A/(2*r_2)**1.5,__rhos_from_c_NFW(c,rho_vir)*(1+1e-12)]).root
     r_s = rs_from_r2(r_2,rho_s,A)
   return r_s, rho_s
 
