@@ -16,6 +16,8 @@ default_params = {
   'concentration_model':'L13', # concentration model: 'L13' or 'L16'
   'c_param_L16':650., # parameter C in the Ludlow et al. (2016) concentration model
   'collapsed_fraction_f':0.02, # progenitor mass fraction f in the L16 model
+  'eps_nM':600, # EPSGrowth mass-grid points (sigma(M)/Omega(M) tables)
+  'eps_nq':600, # EPSGrowth q-grid points (rate integral, cusp A only)
   }
 
 # moments of the power spectrum
@@ -186,7 +188,9 @@ class CuspHalo(object):
     history and for sigma(M) in the L16 concentration model. Built eagerly when
     growth_model=='eps'; built on first use otherwise.'''
     if self._eps is None:
-      self._eps = EPSGrowth(self.k1,self.P1,self.rho1,delta_c=self.delta_c)
+      self._eps = EPSGrowth(self.k1,self.P1,self.rho1,delta_c=self.delta_c,
+                            nM=self.model_params.get('eps_nM',600),
+                            nq=self.model_params.get('eps_nq',600))
     return self._eps
 
   def _resolve_growth_model(self,growth_model):

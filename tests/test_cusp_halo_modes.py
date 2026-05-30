@@ -7,7 +7,7 @@ from conftest import make_spectrum
 
 def build(mode):
     k, P = make_spectrum()
-    mp = {**default_params, 'growth_history': mode}
+    mp = {**default_params, 'growth_model': mode}
     return CuspHalo(k, P, growth=1.0, rho=1.0, model_params=mp, verbose=False)
 
 
@@ -34,7 +34,7 @@ def test_mode_runs(mode):
 
 def test_invalid_mode_raises():
     k, P = make_spectrum()
-    mp = {**default_params, 'growth_history': 'bogus'}
+    mp = {**default_params, 'growth_model': 'bogus'}
     with pytest.raises(Exception):
         CuspHalo(k, P, growth=1.0, rho=1.0, model_params=mp, verbose=False)
 
@@ -57,8 +57,8 @@ def test_concentration_rises_to_late_times(mode_fixture, request):
 
 
 def test_eps_default_is_exp():
-    # the package default leaves the growth history as the closed-form 'exp'
-    assert default_params['growth_history'] == 'exp'
+    # the package default leaves the growth model as the closed-form 'exp'
+    assert default_params['growth_model'] == 'exp'
     k, P = make_spectrum()
     model = CuspHalo(k, P, growth=1.0, rho=1.0, verbose=False)
-    assert model.growth_history == 'exp'
+    assert model.growth_model == 'exp'

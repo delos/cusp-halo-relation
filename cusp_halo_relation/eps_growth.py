@@ -43,6 +43,43 @@ from .mpk_helpers.perturbations import W
 DELTA_C = 1.686 # critical linear overdensity for spherical collapse
 
 
+_GEOM_CACHE = {}      # (k.tobytes(), rho, nM) -> (log10M, W2, w_lnk)
+_GEOM_CACHE_MAX = 4   # bound memory: each W2 is ~nk*nM floats
+
+
+def _tophat_geometry(k, rho, nM):
+  '''Mass grid, squared top-hat window W(kR)^2, and Simpson weights for the
+  sigma(M) integral.
+
+  These depend only on the k-grid, mean density rho, and nM, so they can be
+  reused across power spectra (e.g. every B_bump in a bisection at fixed
+  cosmology). The result is cached because W(kR)^2 dominates the cost of
+  building EPSGrowth.
+
+  w_lnk is the Simpson weight vector for integration over ln k: because Simpson
+  is linear in the integrand, simpson(y, x=lnk) == w_lnk @ y for any y, so
+  sigma^2(M) = int P W^2 dlnk reduces to the matvec (w_lnk*P) @ W2.
+  '''
+  key = (k.tobytes(), float(rho), int(nM))
+  hit = _GEOM_CACHE.get(key)
+  if hit is None:
+    # R = 1/k -> M(k) = (4 pi / 3) rho / k^3; the widest masses the spectrum
+    # can constrain span k in [k_min, k_max].
+    M_of_k = lambda kk: 4.*np.pi/3. * rho / kk**3
+    log10M = np.linspace(np.log10(M_of_k(k.max())),
+                         np.log10(M_of_k(k.min())), nM)
+    R = (3.*10.**log10M / (4.*np.pi*rho))**(1./3.)
+    W2 = W(k[:,None] * R[None,:])**2 # (nk, nM)
+    # extract the exact Simpson weights from the identity basis (one-time)
+    lnk = np.log(k)
+    w_lnk = simpson(np.eye(k.size), x=lnk, axis=0)
+    if len(_GEOM_CACHE) >= _GEOM_CACHE_MAX:
+      _GEOM_CACHE.clear()
+    _GEOM_CACHE[key] = hit = (log10M, W2, w_lnk)
+  log10M, W2, w_lnk = hit
+  return log10M.copy(), W2, w_lnk # copy the small grid; share the large arrays read-only
+
+
 class EPSGrowth(object):
   '''
 
@@ -80,27 +117,20 @@ class EPSGrowth(object):
     self.delta_c = float(delta_c)
     self.lnk = np.log(self.k)
 
-    # ---- mass grid, derived from the k-grid via the top-hat M-R relation ----
-    # R = 1/k  ->  M(k) = (4 pi / 3) rho / k^3.  The widest masses the spectrum
-    # can constrain span k in [k_min, k_max].
-    def M_of_k(kk):
-      return 4.*np.pi/3. * self.rho / kk**3
-    log10M_hi = np.log10(M_of_k(self.k.min()))
-    log10M_lo = np.log10(M_of_k(self.k.max()))
-    self._log10M = np.linspace(log10M_lo, log10M_hi, nM)
+    # ---- mass grid + squared top-hat window (cached; B_bump-independent) -----
+    self._log10M, W2, w_lnk = _tophat_geometry(self.k, self.rho, nM)
     M = 10.**self._log10M
 
     # ---- sigma(M): real-space top-hat variance, sigma^2 = int P W(kR)^2 dlnk --
-    R = (3.*M / (4.*np.pi*self.rho))**(1./3.)
-    x = self.k[:,None] * R[None,:] # (nk, nM)
-    sigma2 = simpson(self.P[:,None] * W(x)**2, x=self.lnk, axis=0)
+    # equivalent to simpson(P[:,None]*W2, x=lnk, axis=0) but as a single matvec.
+    sigma2 = (w_lnk * self.P) @ W2
     self._lnsig = 0.5*np.log(sigma2)
     # lnsigma(log10 M) cubic spline; its derivative gives dln sigma / dln M.
     self._lnsig_spl = InterpolatedUnivariateSpline(self._log10M, self._lnsig, k=3)
 
     # ---- rate(M) = int_{q_lo}^{1/2} (1/q) sqrt(2/pi) s1^2 a1 / (s1^2-s2^2)^1.5 dq
     self._nq = int(nq)
-    rate = np.array([self._rate_of_M(MM) for MM in M])
+    rate = self._rate_of_M(M)
 
     # ---- autonomous flow Omega(M) = int dln M / rate(M) ---------------------
     # Restrict to the contiguous high-mass region where rate is well-resolved;
@@ -154,22 +184,34 @@ class EPSGrowth(object):
     return self._lnsig_spl(np.log10(M), nu=1) / np.log(10.)
 
   def _rate_of_M(self, M):
-    '''rate(M) = -dln M / domega for the linearized EPS kernel (G=1).'''
-    log10M = np.log10(M)
-    # q floor: stay inside the sigma(M) table, capped at 1/4.
-    q_lo = max(10.**(self._log10M[0]) / M, 1e-30)
-    q_lo = min(q_lo, 0.25)
-    q = np.geomspace(q_lo, 0.5, self._nq)
-    Mq = q*M
-    s1 = np.exp(self._lnsig_spl(np.log10(Mq)))
-    s2 = np.exp(self._lnsig_spl(log10M))
-    a1 = np.abs(self._lnsig_spl(np.log10(Mq), nu=1) / np.log(10.))
-    d = s1**2 - s2**2
-    integrand = np.zeros_like(q)
+    '''rate(M) = -dln M / domega for the linearized EPS kernel (G=1).
+
+    Vectorized over M: accepts a scalar or array and returns the matching shape.
+    Each mass uses its own q-grid spanning [q_lo(M), 1/2], with the lower limit
+    q_lo = clip(M_min/M, 1e-30, 1/4) tracking the smallest resolved mass so the
+    integration stays inside the sigma(M) table.
+    '''
+    M = np.asarray(M, dtype=float)
+    scalar = (M.ndim == 0)
+    Mf = np.atleast_1d(M)                                   # (nM,)
+    M_min = 10.**self._log10M[0]
+    q_lo = np.clip(M_min / Mf, 1e-30, 0.25)                 # (nM,)
+    # geometric q-grid per mass, shape (nq, nM)
+    t = np.linspace(0., 1., self._nq)[:, None]
+    q = np.exp(np.log(q_lo)[None, :] * (1. - t) + np.log(0.5) * t)
+    Mq = q * Mf[None, :]
+    log10Mq = np.log10(Mq)
+    s1 = np.exp(self._lnsig_spl(log10Mq.ravel()).reshape(Mq.shape))
+    a1 = np.abs(self._lnsig_spl(log10Mq.ravel(), nu=1).reshape(Mq.shape) / np.log(10.))
+    s2 = np.exp(self._lnsig_spl(np.log10(Mf)))              # (nM,)
+    d = s1**2 - s2[None, :]**2
     good = d > 0
-    integrand[good] = (1./q[good]) * np.sqrt(2./np.pi) * s1[good]**2 \
-                      * a1[good] / d[good]**1.5
-    return float(np.trapezoid(integrand, q))
+    d_safe = np.where(good, d, 1.0)
+    integrand = np.where(good,
+                         (1./q) * np.sqrt(2./np.pi) * s1**2 * a1 / d_safe**1.5,
+                         0.0)
+    rate = np.trapezoid(integrand, q, axis=0)               # (nM,)
+    return float(rate[0]) if scalar else rate
 
   # ----------------------------------------------------------------------------
   #  the MAH flow

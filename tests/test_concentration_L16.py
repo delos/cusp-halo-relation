@@ -6,9 +6,9 @@ from cusp_halo_relation import CuspHalo, CuspHaloStandard, default_params
 from conftest import make_spectrum
 
 
-def build(growth_history='exp', concentration_model='L13'):
+def build(growth_model='exp', concentration_model='L13'):
     k, P = make_spectrum()
-    mp = {**default_params, 'growth_history': growth_history,
+    mp = {**default_params, 'growth_model': growth_model,
           'concentration_model': concentration_model}
     return CuspHalo(k, P, growth=1.0, rho=1.0, model_params=mp, verbose=False)
 
@@ -46,9 +46,9 @@ def test_collapsed_fraction_matches_erfc(eps):
 #  c(M, a) wiring and mass dependence
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("growth_history", ['exp', 'eps'])
-def test_L16_runs(growth_history):
-    model = build(growth_history, 'L16')
+@pytest.mark.parametrize("growth_model", ['exp', 'eps'])
+def test_L16_runs(growth_model):
+    model = build(growth_model, 'L16')
     for M in [1e2, 1e3, 1e4]:
         c = model.c(M, 1.0)
         assert np.isfinite(c) and c > 1.0
