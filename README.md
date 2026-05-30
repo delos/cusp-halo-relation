@@ -29,7 +29,7 @@ redshift = 2.
 
 A = model.A_at_z(M=halo_mass,z=redshift) # cusp coefficient A for these halos, in solar mass/Mpc^1.5
 m = model.A_at_z(M=halo_mass,z=redshift) # cusp mass for these halos, in solar mass
-c = model.c_at_z(z=redshift) # halo concentration
+c = model.c_at_z(M=halo_mass,z=redshift) # halo concentration
 ```
 
 By default we use [Planck 2018](https://arxiv.org/abs/1807.06209) cosmological parameters, a matter power spectrum precomputed using [CLASS](http://class-code.net/) with those parameters, and a warm dark matter transfer function from [Vogel & Abazajian (2023)](https://arxiv.org/abs/2210.10753). See the docstring with `help(cusp_halo_relation.CuspHaloWDM)` (or in [cusp_halo_concordance.py](/cusp_halo_relation/cusp_halo_concordance.py)) for further options.
@@ -68,7 +68,7 @@ halo_mass = 1e9 # in solar mass
 redshift = 2.
 
 A = model.A_at_z(M=halo_mass,z=redshift) # cusp coefficient A for these halos, in solar mass/Mpc^1.5
-c = model.c_at_z(z=redshift) # halo concentration
+c = model.c_at_z(M=halo_mass,z=redshift) # halo concentration
 
 rho_vir = 200.*model.rhoCrit_at_z(z=redshift)
 rs, rhos = cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)

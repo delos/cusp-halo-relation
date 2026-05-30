@@ -10,9 +10,12 @@ default_params = {
   'A_m_index':1.9, # index of cusp A-m relation
   'A_m_coef':0.8, # coefficient of cusp A-m relation
   'mass_growth_fun':lambda s0: np.exp(-4.5/s0), # mass growth factor, function of sigma0
-  'c_param':776., # parameter in concentration model
+  'c_param':776., # parameter C in the Ludlow et al. (2013) concentration model
   'growth_history':'exp', # main-progenitor growth-history model: 'exp' or 'eps'
   'delta_c':DELTA_C, # critical collapse overdensity (only used by 'eps')
+  'concentration_model':'L13', # concentration model: 'L13' or 'L16'
+  'c_param_L16':650., # parameter C in the Ludlow et al. (2016) concentration model
+  'collapsed_fraction_f':0.02, # progenitor mass fraction f in the L16 model
   }
 
 # moments of the power spectrum
@@ -56,13 +59,24 @@ class CuspHalo(object):
       - A_m_coef: coefficient of cusp A-m relation (default 0.8).
       - mass_growth_fun: mass growth factor, function of sigma0. Only used
           when growth_history=='exp'. Default is exp(-4.5/sigma0).
-      - c_param: parameter in Ludlow et al. (2013) concentration model.
+      - c_param: parameter C in the Ludlow et al. (2013) concentration model.
           Default is 776.
       - growth_history: model for the main-progenitor mass accretion history.
           'exp' (default) uses the crude universal closed form mass_growth_fun;
           'eps' uses an Extended Press-Schechter calculation (see eps_growth).
       - delta_c: critical linear overdensity for collapse, only used by the
-          'eps' growth history. Default is 1.686.
+          'eps' growth history and the 'L16' concentration model. Default 1.686.
+      - concentration_model: concentration-mass relation to use.
+          'L13' (default) is Ludlow et al. (2013) [arXiv:1302.0288], driven by
+          the main-progenitor mass accretion history. 'L16' is Ludlow et al.
+          (2016) [arXiv:1601.02624], driven by the EPS collapsed-mass history;
+          it is more robust for truncated (warm dark matter) power spectra.
+      - c_param_L16: parameter C in the L16 concentration model. Default is 650,
+          the value for the analytic spherical-collapse model implemented here
+          (C=400 applies only to Monte Carlo merger trees matched to
+          simulations).
+      - collapsed_fraction_f: progenitor mass fraction f used by the L16 model.
+          Default is 0.02.
           
     verbose: boolean
       Default True. Change to False to suppress messages.
@@ -81,14 +95,21 @@ class CuspHalo(object):
     self.a_max = amax
     self.__prepare_growth(growth,self.a_min,self.a_max)
 
-    # EPS main-progenitor growth history (optional)
+    # growth history and concentration model (optional)
     self.growth_history = self.model_params.get('growth_history','exp')
+    self.concentration_model = self.model_params.get('concentration_model','L13')
     self.delta_c = self.model_params.get('delta_c',DELTA_C)
+    if self.concentration_model not in ('L13','L16'):
+      raise Exception("concentration_model must be 'L13' or 'L16'")
+    # sigma_0 at a=1 -> D(a)=sigma0(a)/sigma0_1, used by _omega for 'eps'/'L16'
+    self._sigma0_1 = sigmaj(0,self.k1,self.P1)
+    # EPS helper: built eagerly for the 'eps' growth history, lazily otherwise
+    # (the 'L16' concentration model needs sigma(M) even under 'exp' growth)
+    self._eps = None
     if self.growth_history == 'eps':
       if self.verbose:
         print('CuspHalo: using EPS main-progenitor growth history')
-      self._sigma0_1 = sigmaj(0,self.k1,self.P1) # sigma_0 at a=1 -> D(a)=sigma0(a)/sigma0_1
-      self._eps = EPSGrowth(self.k1,self.P1,self.rho1,delta_c=self.delta_c)
+      self._ensure_eps()
     elif self.growth_history != 'exp':
       raise Exception("growth_history must be 'exp' or 'eps'")
 
@@ -156,6 +177,14 @@ class CuspHalo(object):
       return
     self.__tab_invMreduced = self.__tab_s0**(3./(2*self.model_params['A_m_index']-1.)) * self.mass_growth(self.__tab_a)
     self.__tab_lninvMreduced = np.log(self.__tab_invMreduced)
+
+  def _ensure_eps(self):
+    '''Lazily construct the EPSGrowth helper, used for the EPS main-progenitor
+    history and for sigma(M) in the L16 concentration model. Built eagerly when
+    growth_history=='eps'; built on first use otherwise.'''
+    if self._eps is None:
+      self._eps = EPSGrowth(self.k1,self.P1,self.rho1,delta_c=self.delta_c)
+    return self._eps
 
   def _omega(self,a):
     '''EPS time variable omega(a) = delta_c / D(a) = delta_c sigma0(1) / sigma0(a).'''
@@ -273,12 +302,18 @@ class CuspHalo(object):
   def characteristic_c(self,a):
     '''
     Estimate the concentration parameter c at scale factor a for halos close to
-    the cutoff scale. If the class has a method rhoCrit(a) that returns the
-    critical density as a function of scale factor, then we use it. Otherwise
-    we use the matter density rho(a), which gives less accurate results.
+    the cutoff scale, using the mass-independent exp+L13 model (the universal
+    closed-form mass-growth history). If the class has a method rhoCrit(a) that
+    returns the critical density as a function of scale factor, then we use it.
+    Otherwise we use the matter density rho(a), which gives less accurate
+    results.
+
+    This estimate is mass-independent and ignores the configured growth_history
+    and concentration_model; for the configured model use c(M,a) instead.
     '''
-    if self.growth_history == 'eps':
-      return self._characteristic_c_eps(a)
+    if self.verbose and (self.concentration_model != 'L13' or self.growth_history != 'exp'):
+      print('CuspHalo: Warning: characteristic_c returns the mass-independent '
+            'exp+L13 estimate; use c(M,a) for the configured model.')
     mass = self.mass_growth(self.__tab_a)/self.mass_growth(a)
     if 'rhoCrit' in dir(self):
       density = self.rhoCrit(self.__tab_a)/self.rhoCrit(a)
@@ -288,24 +323,41 @@ class CuspHalo(object):
       density = self.rho(self.__tab_a)/self.rho(a)
     return concentration.concentration_L13_NFW(density,mass,Dvir=200.,C=self.model_params['c_param'])
 
-  def _characteristic_c_eps(self,a):
-    '''characteristic_c using the EPS main-progenitor history of a fixed
-    cutoff-scale halo (the half-mode mass Mhm if available, else the spectrum's
-    cutoff mass M_cut). Holding the reference mass fixed across epochs is what
-    makes the concentration of these small halos rise toward late times, as in
-    the 'exp' model.'''
-    a = np.asarray(a,dtype=float)
-    if a.ndim:
-      return np.array([self.__characteristic_c_eps_scalar(float(ai)) for ai in a.ravel()]).reshape(a.shape)
-    return self.__characteristic_c_eps_scalar(float(a))
+  def c(self,M,a):
+    '''
+    Predicted concentration c=R_vir/r_-2 for a halo of mass M at scale factor a.
 
-  def __characteristic_c_eps_scalar(self,a):
-    M_ref = getattr(self,'Mhm',None) or self._eps.M_cut
-    mass = self._eps.main_progenitor(M_ref,self._omega(self.__tab_a)-self._omega(a))/M_ref
+    The mass dependence follows the configured model:
+    - L13 + 'exp' growth: mass-independent (the universal mass-growth history;
+      equivalent to characteristic_c).
+    - L13 + 'eps' growth: mass-dependent via the EPS main-progenitor history.
+    - L16 (either growth history): mass-dependent via the EPS collapsed-mass
+      history (eqs 6 and 7 of Ludlow et al. 2016).
+    '''
+    M = np.asarray(M,dtype=float)
+    a = np.asarray(a,dtype=float)
+    scalar = (M.ndim==0 and a.ndim==0)
+    Mb,ab = np.broadcast_arrays(M,a)
+    out = np.array([self.__c_scalar(float(Mi),float(ai)) for Mi,ai in zip(Mb.ravel(),ab.ravel())])
+    out = out.reshape(Mb.shape)
+    return float(out) if scalar else out
+
+  def __c_scalar(self,M,a):
+    if self.concentration_model == 'L13' and self.growth_history == 'exp':
+      return self.characteristic_c(a) # mass-independent
     if 'rhoCrit' in dir(self):
       density = self.rhoCrit(self.__tab_a)/self.rhoCrit(a)
     else:
       if self.verbose:
         print('CuspHalo: Warning: using matter density rho(a) for concentrations because rhoCrit(a) is not available.')
       density = self.rho(self.__tab_a)/self.rho(a)
-    return concentration.concentration_L13_NFW(density,mass,Dvir=200.,C=self.model_params['c_param'])
+    domega = self._omega(self.__tab_a)-self._omega(a)
+    if self.concentration_model == 'L16':
+      f = self.model_params.get('collapsed_fraction_f',0.02)
+      mass = self._ensure_eps().collapsed_fraction(M,domega,f=f)
+      mass = np.maximum(mass,1e-300) # the erfc underflows to 0 at very early times
+      C = self.model_params.get('c_param_L16',650.)
+    else: # L13 + 'eps'
+      mass = self._eps.main_progenitor(M,domega)/M
+      C = self.model_params['c_param']
+    return concentration.concentration_L13_NFW(density,mass,Dvir=200.,C=C)

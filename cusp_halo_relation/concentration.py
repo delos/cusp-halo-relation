@@ -19,8 +19,12 @@ def concentration_L13_NFW(rho_over_rho0,M_over_M0,Dvir=200.,C=776.):
   We use the result from Ludlow et al. (2013) [arXiv:1302.0288] that the
   average density within r_-2 is C times the density of the universe when the
   halo virial mass was M_-2, where M_-2 is the mass enclosed in r_-2.
-  
+
   Here we approximate that the halo has an NFW profile for radii r>r_-2.
+
+  This same NFW solver also serves the Ludlow et al. (2016) [arXiv:1601.02624]
+  model (eqs 6 and 7): pass the EPS collapsed-mass history (see
+  eps_growth.EPSGrowth.collapsed_fraction) as M and use C=650.
   
   Parameters:
     

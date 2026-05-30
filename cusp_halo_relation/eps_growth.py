@@ -36,6 +36,7 @@ van den Bosch (2002); Neistein, van den Bosch & Dekel (2006); Neistein & Dekel
 import numpy as np
 from scipy.integrate import simpson, cumulative_trapezoid
 from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.special import erfc
 
 from .mpk_helpers.perturbations import W
 
@@ -195,6 +196,29 @@ class EPSGrowth(object):
     Omega_t = np.clip(Omega0 - domega, self._Omega_lo, self._Omega_hi)
     out = np.exp(self._lnM_of_Omega(Omega_t))
     return out if out.ndim else float(out)
+
+  def collapsed_fraction(self, M0, domega, f=0.02):
+    '''
+
+    EPS collapsed-mass fraction (Lacey & Cole 1993; Ludlow et al. 2016, eqs 3
+    and 7):
+
+      Mcoll/M0 = erfc( domega / sqrt(2 (sigma^2(f M0) - sigma^2(M0))) ),
+
+    the fraction of the final mass M0 that, at an EPS-time offset domega before
+    the epoch at which the halo mass is M0, was already assembled into collapsed
+    progenitors more massive than f*M0. The variances are the a=1 top-hat
+    sigma(M), with the time dependence carried entirely by
+    domega = omega(a') - omega(a0) = delta_sc(a') - delta_sc(a0) >= 0.
+
+    The result is 1 at domega=0 and decreases toward earlier times. f*M0 is
+    clamped to the resolved mass range so the variance saturates at the spectral
+    cutoff. domega may be a scalar or array.
+
+    '''
+    domega = np.asarray(domega, dtype=float)
+    s2 = self.sigma(max(f*M0, self._M_lo))**2 - self.sigma(M0)**2
+    return erfc(domega / np.sqrt(2.*s2))
 
   def M_nonlinear(self, omega):
     '''

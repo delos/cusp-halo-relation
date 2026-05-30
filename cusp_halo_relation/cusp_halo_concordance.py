@@ -158,9 +158,21 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     '''Predicted cusp A for a halo of mass M at redshift z.'''
     return self.A(M,1./(1.+z))
   
-  def c_at_z(self,z):
-    '''Estimated typical concentration parameter of small halos at redshift z.'''
-    return self.characteristic_c(1./(1.+z))
+  def c_at_z(self,M=None,z=None):
+    '''
+    Predicted concentration parameter of a halo of mass M at redshift z.
+
+    If the mass M is omitted (e.g. c_at_z(z=...) or a single positional
+    redshift), the mass-independent exp+L13 characteristic concentration of
+    small (cutoff-scale) halos at redshift z is returned instead.
+    '''
+    if z is None: # a single value was supplied; treat it as the redshift
+      if M is None:
+        raise TypeError('c_at_z requires a redshift')
+      return self.characteristic_c(1./(1.+M))
+    if M is None: # only the redshift was supplied (e.g. c_at_z(z=...))
+      return self.characteristic_c(1./(1.+z))
+    return self.c(M,1./(1.+z))
   
   def rhoCrit_at_z(self,z):
     '''
