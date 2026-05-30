@@ -2,6 +2,7 @@ from inspect import signature
 import numpy as np
 from scipy.integrate import simpson
 from . import concentration
+from .eps_growth import EPSGrowth, DELTA_C
 
 default_params = {
   'A_coef':24., # coefficient of A in cusp-peak connection
@@ -10,6 +11,8 @@ default_params = {
   'A_m_coef':0.8, # coefficient of cusp A-m relation
   'mass_growth_fun':lambda s0: np.exp(-4.5/s0), # mass growth factor, function of sigma0
   'c_param':776., # parameter in concentration model
+  'growth_history':'exp', # main-progenitor growth-history model: 'exp' or 'eps'
+  'delta_c':DELTA_C, # critical collapse overdensity (only used by 'eps')
   }
 
 # moments of the power spectrum
@@ -51,10 +54,15 @@ class CuspHalo(object):
       - m_coef: coefficient of m in cusp-peak connection (default 7.3364).
       - A_m_index: index of cusp A-m relation (default 1.9).
       - A_m_coef: coefficient of cusp A-m relation (default 0.8).
-      - mass_growth_fun: mass growth factor, function of sigma0.
-          Default is exp(-4.5/sigma0).
+      - mass_growth_fun: mass growth factor, function of sigma0. Only used
+          when growth_history=='exp'. Default is exp(-4.5/sigma0).
       - c_param: parameter in Ludlow et al. (2013) concentration model.
           Default is 776.
+      - growth_history: model for the main-progenitor mass accretion history.
+          'exp' (default) uses the crude universal closed form mass_growth_fun;
+          'eps' uses an Extended Press-Schechter calculation (see eps_growth).
+      - delta_c: critical linear overdensity for collapse, only used by the
+          'eps' growth history. Default is 1.686.
           
     verbose: boolean
       Default True. Change to False to suppress messages.
@@ -72,7 +80,18 @@ class CuspHalo(object):
     self.a_min = amin or 0.05/sigmaj(0,k,P) # this should be long before any peaks collapse
     self.a_max = amax
     self.__prepare_growth(growth,self.a_min,self.a_max)
-    
+
+    # EPS main-progenitor growth history (optional)
+    self.growth_history = self.model_params.get('growth_history','exp')
+    self.delta_c = self.model_params.get('delta_c',DELTA_C)
+    if self.growth_history == 'eps':
+      if self.verbose:
+        print('CuspHalo: using EPS main-progenitor growth history')
+      self._sigma0_1 = sigmaj(0,self.k1,self.P1) # sigma_0 at a=1 -> D(a)=sigma0(a)/sigma0_1
+      self._eps = EPSGrowth(self.k1,self.P1,self.rho1,delta_c=self.delta_c)
+    elif self.growth_history != 'exp':
+      raise Exception("growth_history must be 'exp' or 'eps'")
+
     # prefactors for cusp-halo results
     self.A_pre = self.model_params['A_coef']*(self.model_params['A_coef']/(self.model_params['A_m_coef']*self.model_params['m_coef']**self.model_params['A_m_index']))**(1./(2.*self.model_params['A_m_index']-1.))
     self.m_pre = self.model_params['m_coef']*(self.model_params['A_coef']/(self.model_params['A_m_coef']*self.model_params['m_coef']**self.model_params['A_m_index']))**(2./(2.*self.model_params['A_m_index']-1.))
@@ -130,8 +149,17 @@ class CuspHalo(object):
       self.P0 = self.a0**2 * self.P1
   
   def __prepare_cusps(self,growth,amin,amax):
+    # the 'exp' growth history factorizes into a universal mass-growth table;
+    # the 'eps' history is halo-mass dependent and root-finds in collapse_a, so
+    # this table is unused there.
+    if self.growth_history == 'eps':
+      return
     self.__tab_invMreduced = self.__tab_s0**(3./(2*self.model_params['A_m_index']-1.)) * self.mass_growth(self.__tab_a)
     self.__tab_lninvMreduced = np.log(self.__tab_invMreduced)
+
+  def _omega(self,a):
+    '''EPS time variable omega(a) = delta_c / D(a) = delta_c sigma0(1) / sigma0(a).'''
+    return self.delta_c * self._sigma0_1 / self.sigma0(a)
   
   def rho(self,a=1.):
     '''Density as a function of scale factor a. Default is a=1.'''
@@ -178,9 +206,41 @@ class CuspHalo(object):
     Estimate a cusp's formation scale factor a_coll, given that it is the
     central cusp of a halo of mass M at the scale factor a.
     '''
+    if self.growth_history == 'eps':
+      return self._collapse_a_eps(M,a)
     reducedM = M / (self.m_pre * self.rho(a)*(self.sigma0(a)/self.sigma2(a))**1.5 * self.mass_growth(a) )
     a_out = np.exp(np.interp(-np.log(reducedM),self.__tab_lninvMreduced,self.__tab_lna,left=-np.inf,right=np.inf))
     return np.where(a_out<=a,a_out,np.nan)
+
+  def _collapse_a_eps(self,M,a):
+    '''
+    collapse_a using the EPS main-progenitor history. The cusp forms when the
+    main progenitor first reaches the characteristic threshold,
+
+      M_prog(a_coll) sigma0(a_coll)^p = m_pre rho(a) (sigma0(a)/sigma2(a))^1.5,
+
+    with p = 3/(2 A_m_index - 1) and M_prog from the EPS mass flow. This is the
+    same condition the 'exp' interpolation table encodes, with the universal
+    mass-growth shape replaced by the (halo-mass-dependent) EPS history.
+    '''
+    M = np.asarray(M,dtype=float)
+    a = np.asarray(a,dtype=float)
+    scalar = (M.ndim==0 and a.ndim==0)
+    Mb,ab = np.broadcast_arrays(M,a)
+    p = 3./(2.*self.model_params['A_m_index']-1.)
+    lna_grid = self.__tab_lna
+    lns0_grid = self.__tab_lns0
+    omega_grid = self._omega(self.__tab_a)
+    out = np.empty(Mb.size)
+    for i,(Mi,ai) in enumerate(zip(Mb.ravel(),ab.ravel())):
+      domega = omega_grid - self._omega(ai)
+      Mprog = self._eps.main_progenitor(Mi,domega)
+      lhs = np.log(Mprog) + p*lns0_grid # increasing in a'
+      rhs = np.log(self.m_pre * self.rho(ai) * (self.sigma0(ai)/self.sigma2(ai))**1.5)
+      a_coll = np.exp(np.interp(rhs,lhs,lna_grid,left=-np.inf,right=np.inf))
+      out[i] = a_coll if a_coll<=ai else np.nan
+    out = out.reshape(Mb.shape)
+    return float(out) if scalar else out
   
   def characteristic_m(self,a_coll):
     '''
@@ -217,7 +277,31 @@ class CuspHalo(object):
     critical density as a function of scale factor, then we use it. Otherwise
     we use the matter density rho(a), which gives less accurate results.
     '''
+    if self.growth_history == 'eps':
+      return self._characteristic_c_eps(a)
     mass = self.mass_growth(self.__tab_a)/self.mass_growth(a)
+    if 'rhoCrit' in dir(self):
+      density = self.rhoCrit(self.__tab_a)/self.rhoCrit(a)
+    else:
+      if self.verbose:
+        print('CuspHalo: Warning: using matter density rho(a) for concentrations because rhoCrit(a) is not available.')
+      density = self.rho(self.__tab_a)/self.rho(a)
+    return concentration.concentration_L13_NFW(density,mass,Dvir=200.,C=self.model_params['c_param'])
+
+  def _characteristic_c_eps(self,a):
+    '''characteristic_c using the EPS main-progenitor history of a fixed
+    cutoff-scale halo (the half-mode mass Mhm if available, else the spectrum's
+    cutoff mass M_cut). Holding the reference mass fixed across epochs is what
+    makes the concentration of these small halos rise toward late times, as in
+    the 'exp' model.'''
+    a = np.asarray(a,dtype=float)
+    if a.ndim:
+      return np.array([self.__characteristic_c_eps_scalar(float(ai)) for ai in a.ravel()]).reshape(a.shape)
+    return self.__characteristic_c_eps_scalar(float(a))
+
+  def __characteristic_c_eps_scalar(self,a):
+    M_ref = getattr(self,'Mhm',None) or self._eps.M_cut
+    mass = self._eps.main_progenitor(M_ref,self._omega(self.__tab_a)-self._omega(a))/M_ref
     if 'rhoCrit' in dir(self):
       density = self.rhoCrit(self.__tab_a)/self.rhoCrit(a)
     else:

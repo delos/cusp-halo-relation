@@ -70,15 +70,20 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     
     amin, amax: floats
       Smallest and largest scale factors we are interested in. Default is to
-      select amin automatically and amax=1.  
-      
+      select amin automatically and amax=1.
+
+    model_params: dict
+      Parameters of the cusp-halo model (see CuspHalo). Default is the standard
+      set; pass e.g. {**default_params, 'growth_history':'eps'} to use the EPS
+      main-progenitor growth history.
+
     verbose: boolean
       Default True. Change to False to suppress messages.
   
   '''
   
-  def __init__(self,cutoff,include_baryons,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',Mhm=None,khm=None,lhm=None,amin=None,amax=1.,verbose=True):
-    
+  def __init__(self,cutoff,include_baryons,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',Mhm=None,khm=None,lhm=None,amin=None,amax=1.,model_params=None,verbose=True):
+
     # cosmology
     self.OmegaM = OmegaM
     self.h = h
@@ -134,7 +139,9 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
       P *= (sigma8/perturbations.sigma8(k,P,h))**2
     
     # initialize parent
-    super().__init__(k,P*T(k)**2,growth=growth,rho=rho,amin=amin,amax=amax,verbose=verbose)
+    if model_params is None:
+      model_params = cusp_halo.default_params
+    super().__init__(k,P*T(k)**2,growth=growth,rho=rho,amin=amin,amax=amax,model_params=model_params,verbose=verbose)
   
   def rhoCrit(self,a):
     '''
@@ -212,17 +219,22 @@ class CuspHaloWDM(CuspHaloStandard):
     amin, amax: floats
       Smallest and largest scale factors we are interested in. Default is to
       select amin automatically and amax=1.
-      
+
+    model_params: dict
+      Parameters of the cusp-halo model (see CuspHalo). Default is the standard
+      set; pass e.g. {**default_params, 'growth_history':'eps'} to use the EPS
+      main-progenitor growth history.
+
     verbose: boolean
       Default True. Change to False to suppress messages.
-  
+
   '''
-  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',amin=None,amax=1.,verbose=True):
+  def __init__(self,cutoff='VA23',mX=None,Mhm=None,h=0.6736,OmegaM=0.3089,OmegaB=0.04886,spin=0.5,n_s=0.9649,A_s=2.100e-9,sigma8=None,transfer='table',amin=None,amax=1.,model_params=None,verbose=True):
     if sum(x is None for x in [mX,Mhm]) != 1:
       raise Exception('must specify exactly one of mX and Mhm')
     if mX is None:
       mX = 1. # dummy value if half-mode scale is specified instead
     T = cutoffs.Cutoff(cutoff,h=h,OmegaM=OmegaM,OmegaB=OmegaB,m=mX,spin=spin,verbose=verbose).transfer
-    super().__init__(T,include_baryons=True,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=A_s,sigma8=sigma8,transfer=transfer,Mhm=Mhm,amin=amin,amax=amax,verbose=verbose)
+    super().__init__(T,include_baryons=True,h=h,OmegaM=OmegaM,OmegaB=OmegaB,n_s=n_s,A_s=A_s,sigma8=sigma8,transfer=transfer,Mhm=Mhm,amin=amin,amax=amax,model_params=model_params,verbose=verbose)
     if verbose:
       print('CuspHaloWDM: khm = %e Mpc^-1, Mhm = %e Msol'%(self.khm,self.Mhm))
