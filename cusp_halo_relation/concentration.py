@@ -1,6 +1,14 @@
 import numpy as np
 
-__tab_c = np.geomspace(1,1e3,1000)
+# Concentration lookup range. The cusp-halo model can imply very high
+# concentrations for strongly bumped (small-scale-enhanced) spectra, and the
+# L16 solver indexes this table at intermediate densities along the accretion
+# history; too narrow a range returns spurious NaN even when the final c is
+# moderate. 1e6 is far above any physical halo concentration, so genuinely
+# runaway cases still fall off the end and are flagged downstream. The
+# per-decade sampling matches the original [1,1e3] table (in-range results
+# unchanged to ~1e-6).
+__tab_c = np.geomspace(1,1e6,2000)
 __tab_m2_NFW = (np.log(4)-1)/2 / (np.log(1+__tab_c)-__tab_c/(1+__tab_c))
 __tab_p2_NFW = __tab_c**3 * __tab_m2_NFW
 __tab_logc = np.log(__tab_c)
