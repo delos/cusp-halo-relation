@@ -4,9 +4,10 @@ Extended Press-Schechter (EPS) main-progenitor mass accretion history.
 
 This module provides an alternative to the crude, universal closed-form growth
 history mass_growth_fun used by CuspHalo. It computes the mean main-progenitor
-mass accretion history (MAH) by integrating the linearized Lacey & Cole (1993)
-progenitor rate backward in time, following Neistein, van den Bosch & Dekel
-(2006).
+mass accretion history (MAH) as the first moment of the Lacey & Cole (1993,
+sec. 2.3, Fig. 4) merger rate -- the mean fractional mass-accretion rate, with
+q = DeltaM/M weighting the splitting kernel -- integrated backward in time. This
+is the deterministic mean of a Cole et al. (2000) binary-split merger tree.
 
 Key simplification
 ------------------
