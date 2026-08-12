@@ -7,7 +7,7 @@ We require Python with `numpy` and `scipy`.
 
 ## Usage
 
-Clone or [download](/../../archive/refs/heads/main.zip) the repository. In Python, start with:
+Clone (`git clone --recurse-submodules https://github.com/delos/cusp-halo-relation.git`) or [download](/../../archive/refs/heads/main.zip) the repository. In Python, start with:
 
 ```
 import sys
