@@ -76,6 +76,8 @@ rs, rhos = cusp_halo_relation.cuspNFW.scale_from_c(c,M,A,rho_vir)
 
 See `help(cusp_halo_relation.cuspNFW)` (or [cuspNFW.py](/cusp_halo_relation/cuspNFW.py)) for further possibilities.
 
+For a cusp-Einasto profile, use `cusp_halo_relation.cuspEinasto`, which has the same functions with the Einasto shape parameter `alpha` as an additional argument after `A`. For example, `cusp_halo_relation.cuspEinasto.density(r,rs,rhos,A,alpha)` returns the density, and `cusp_halo_relation.cuspEinasto.scale_from_c(c,M,A,rho_vir,alpha)` returns the scale radius and scale density, which here are the radius at which the logarithmic slope of the Einasto component is -2 and the density of that component there. See `help(cusp_halo_relation.cuspEinasto)` (or [cuspEinasto.py](/cusp_halo_relation/cuspEinasto.py)) for further possibilities.
+
 ## Examples
 
 We include in the [examples](/examples/) subdirectory several examples of how to use the code.
