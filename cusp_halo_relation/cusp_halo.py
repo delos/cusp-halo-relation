@@ -10,6 +10,7 @@ default_params = {
   'A_m_index':1.9, # index of cusp A-m relation
   'A_m_coef':0.8, # coefficient of cusp A-m relation
   'mass_growth_fun':lambda s0: np.exp(-4.5/s0), # mass growth factor, function of sigma0
+  'A_scatter_fun':lambda s0: 0.45*np.exp(-1./s0), # scatter in ln A at fixed halo mass and time, function of sigma0
   'c_param':776., # parameter C in the Ludlow et al. (2013) concentration model
   'growth_model':'exp', # main-progenitor growth-history model: 'exp' or 'eps'
   'delta_c':DELTA_C, # critical collapse overdensity (only used by 'eps')
@@ -61,6 +62,9 @@ class CuspHalo(object):
       - A_m_coef: coefficient of cusp A-m relation (default 0.8).
       - mass_growth_fun: mass growth factor, function of sigma0. Only used
           when growth_model=='exp'. Default is exp(-4.5/sigma0).
+      - A_scatter_fun: lognormal scatter sigma_lnA in A at fixed halo mass
+          and time, function of sigma0 at that time. Default is
+          0.45 exp(-1/sigma0), from Delos et al. (2025) [arXiv:2512.04156].
       - c_param: parameter C in the Ludlow et al. (2013) concentration model.
           Default is 776.
       - growth_model: default model for the main-progenitor mass accretion
@@ -321,6 +325,28 @@ class CuspHalo(object):
     factor a. growth_model overrides the configured main-progenitor growth model.
     '''
     return self.characteristic_A(self.collapse_a(M,a,growth_model))
+
+  def sigma_lnA(self,a):
+    '''
+    Lognormal scatter sigma_lnA in the cusp coefficient A of halos at fixed mass
+    M and scale factor a; A(M,a) is the median. Formula from Delos et al. (2025)
+    [arXiv:2512.04156]; valid for A > characteristic_A(self.a0).
+    '''
+    return self.model_params.get('A_scatter_fun',default_params['A_scatter_fun'])(self.sigma0(a))
+
+  def sample_A(self,M,a,rng=None,size=None,growth_model=None):
+    '''
+    Draw cusp coefficients A for halos of mass M at scale factor a, lognormally
+    distributed about the median A(M,a) with width sigma_lnA(a). rng is a
+    numpy Generator (default np.random.default_rng()); size is passed to it
+    (default: the broadcast shape of M and a).
+    '''
+    rng = np.random.default_rng() if rng is None else rng
+    A_med = self.A(M,a,growth_model=growth_model)
+    sig = self.sigma_lnA(a)
+    if size is None:
+      size = np.broadcast(A_med,sig).shape
+    return A_med*np.exp(sig*rng.standard_normal(size))
 
   def characteristic_c(self,a):
     '''

@@ -160,6 +160,15 @@ class CuspHaloStandard(cusp_halo.CuspHalo):
     overrides the configured main-progenitor growth model.'''
     return self.A(M,1./(1.+z),growth_model=growth_model)
 
+  def sigma_lnA_at_z(self,z):
+    '''Lognormal scatter sigma_lnA in A at fixed halo mass and redshift z.'''
+    return self.sigma_lnA(1./(1.+z))
+
+  def sample_A_at_z(self,M,z,rng=None,size=None,growth_model=None):
+    '''Lognormal draws of A for halos of mass M at redshift z about the median
+    A_at_z.'''
+    return self.sample_A(M,1./(1.+z),rng=rng,size=size,growth_model=growth_model)
+
   def c_at_z(self,M=None,z=None,growth_model=None,concentration_model=None):
     '''
     Predicted concentration parameter of a halo of mass M at redshift z.
