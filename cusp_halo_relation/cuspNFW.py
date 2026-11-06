@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import root_scalar
-from scipy.integrate import cumulative_trapezoid, simpson
+from scipy.integrate import cumulative_trapezoid, cumulative_simpson, simpson
 from scipy.interpolate import CubicSpline
 
 # dimensionless radial profiles
@@ -111,7 +111,20 @@ def __potential_inf(y,z=0.):
   _m = __mass(_x,y,z)
   _p0 = __density(0.,y,z)
   _pot_0 = (2*np.pi/3.)*_p0*xmin**2
-  return cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0)[-1] + _pot_0
+  # tail beyond xmax, where rho ~ x^g
+  _tail = _m[-1]/xmax + 4*np.pi*__density(xmax,y,z)*xmax**2/(-__density_slope(xmax,y,z)-2.)
+  return cumulative_trapezoid(_m/_x,x=np.log(_x),initial=0)[-1] + _pot_0 + _tail
+def __table(xmin,xmax,y,z=0.,step=1.01):
+  # density, mass and potential on a fixed lattice in ln x; power law below xmin
+  h = np.log(step)
+  n0,n1 = int(np.floor(np.log(xmin)/h)),int(np.ceil(np.log(xmax)/h))
+  _lx = h*np.arange(n0,n1+1)
+  _x = np.exp(_lx)
+  _p = __density(_x,y,z)
+  g0 = __density_slope(_x[0],y,z)
+  _m = cumulative_simpson(4*np.pi*_p*_x**3,x=_lx,initial=0) + 4*np.pi*_p[0]*_x[0]**3/(3+g0)
+  _pot = cumulative_simpson(_m/_x,x=_lx,initial=0) + _m[0]/(_x[0]*(2+g0))
+  return _x,_p,_m,_pot
 
 # radial profiles
 
@@ -285,51 +298,71 @@ def potential(r,r_s,rho_s,A,r_c=0.,G=1.,zero_at_inf=False):
 # distribution function
 
 def __df(e,y,z=0.,zero_at_inf=False):
-  if zero_at_inf:
-    e = e + __potential_inf(y,z)
-  step = 1.01 # step in factors of 1.01
-  # get drho/dPhi
-  xmax = 1e5
-  if z == 0.:
-    xmin = 9./(256.*np.pi**2) * np.min(e)**2 / step**3
-  else:
-    # z > 0: Phi ~ (2pi/3) rho_0 x^2, so x ~ sqrt(e / ((2pi/3) rho_0))
-    _p0 = __density(0.,y,z)
-    xmin = np.sqrt(np.min(e) / ((2*np.pi/3.)*_p0)) / step**2
-    xmin = max(xmin, 1e-10)
-  Nx = 1+int(np.ceil(np.log(xmax/xmin)/np.log(step)))
-  _x = np.geomspace(xmin,xmax,Nx)
-  _p = __density(_x,y,z)
-  _P = __potential(_x,y,z)
-  __P = np.sqrt(_P[1:]*_P[:-1])
-  __dpdP = np.sqrt(_p[1:]*_p[:-1]/(_P[1:]*_P[:-1])) * np.diff(np.log(_p))/np.diff(np.log(_P))
-  # choose range of energies
-  # (we log-space in difference from 0 and from inf, whichever is smaller)
+  # energy lattice in s(e) = ln e below Phi_inf/2 and -ln(Phi_inf-e) above it
+  _shape = np.shape(e)
+  e = np.atleast_1d(np.array(e,dtype=float))
   Pinf = __potential_inf(y,z)
-  emin, emax = np.min(e)/step, min(np.max(e)*step,__P[-1]/step)
-  emidL = 0.5*Pinf/np.sqrt(step)
-  emidU = 0.5*Pinf*np.sqrt(step)
-  if emin <= emidL:
-    NeL = 1+int(np.ceil(np.log(emidL/emin)/np.log(step)))
-    _eL = np.geomspace(emin,emidL,NeL)
+  # ecal = Pinf - e, kept exact if given
+  if zero_at_inf:
+    e,ecal = e + Pinf,-e
   else:
-    _eL = np.empty(0)
-  if emax > emidU:
-    NeU = 1+int(np.ceil(np.log((1-emidU/step/emax)/(1-1/step))/np.log(step)))
-    _eU = emax*step * (1.- np.geomspace(1-emidU/step/emax,1-1/step,NeU))
-  else:
-    _eU = np.empty(0)
-  _e = np.concatenate((_eL,_eU))
-  _fint = np.zeros_like(_e)
-  # evaluate DF
-  for i,e1 in enumerate(_e):
-    dpdP1 = -np.exp(np.interp(np.log(e1),np.log(__P),np.log(-__dpdP),left=np.nan,right=np.nan))
-    integrand = np.insert(__dpdP[__P>e1],0,dpdP1)
-    measure = np.insert(np.sqrt(__P[__P>=e1]-e1),0,0.)
-    _fint[i] = 1./(np.sqrt(2)*np.pi**2) * simpson(integrand,x=measure)
-  __e = np.sqrt(_e[1:]*_e[:-1])
-  __f = np.diff(_fint)/np.diff(_e)
-  return np.exp(np.interp(np.log(e),np.log(__e),np.log(__f),left=-np.inf,right=-np.inf))
+    ecal = Pinf - e
+  out = np.zeros(e.shape)
+  bound = (e > 0.)&(ecal > 0.)
+  if not np.any(bound):
+    return out.reshape(_shape)
+  step = 1.01 # step in factors of 1.01
+  h = np.log(step)
+  ln_half = np.log(0.5*Pinf)
+  s_of = lambda e,ecal: np.where(e <= 0.5*Pinf, np.log(np.minimum(e,0.5*Pinf)), 2*ln_half - np.log(np.minimum(ecal,0.5*Pinf)))
+  e_of = lambda s: np.where(s <= ln_half, np.exp(np.minimum(s,ln_half)), Pinf - np.exp(2*ln_half - np.maximum(s,ln_half)))
+  ec_of = lambda s: np.where(s <= ln_half, Pinf - np.exp(np.minimum(s,ln_half)), np.exp(2*ln_half - np.maximum(s,ln_half)))
+  sq = s_of(e[bound],ecal[bound])
+  _s = h*np.arange(int(np.floor(np.min(sq)/h))-2,int(np.ceil(np.max(sq)/h))+3)
+  _e,_ec = e_of(_s),ec_of(_s)
+  # radial table spanning these energies' potentials (Psi ~ 4 pi ln(x)/x at large x)
+  xmin = 1e-4 if z == 0. else min(1e-4,float(z)/100.)
+  while True:
+    _x,_p,_m,_P = __table(xmin,10.,y,z,step=step)
+    if _P[0] <= _e[0]/step**2 or xmin <= 1e-300:
+      break
+    g0 = __density_slope(xmin,y,z)
+    xmin = max(xmin * 0.5*(_e[0]/step**2/_P[0])**(1./(2+g0)), 1e-300)
+  xmax = 1e5
+  while 4*np.pi*np.log(xmax)/xmax > _ec[-1]/step**2 and xmax < 1e300:
+    xmax *= 1e3
+  _x,_p,_m,_P = __table(xmin,xmax,y,z,step=step)
+  # Psi = Phi_inf - Phi, integrated in from outside (precise where Phi -> Phi_inf),
+  # plus the tail beyond the table
+  g = __density_slope(_x,y,z)
+  _Psi_0 = _m[-1]/_x[-1] + 4*np.pi*_p[-1]*_x[-1]**2/(-g[-1]-2.)
+  _Psi = cumulative_simpson((_m/_x)[::-1],x=-np.log(_x)[::-1],initial=0)[::-1] + _Psi_0
+  # Eddington's formula in its integrated-by-parts form,
+  # f = 1/(sqrt(8) pi^2) int_e d2rho/dPhi2 dPhi/sqrt(Phi-e), which avoids
+  # differencing in e (inaccurate near the bottom of a cored potential)
+  _dpdP = _p*g*_x/_m # dPhi/dx = M/x^2
+  _d2pdP2 = _dpdP * (g + np.gradient(np.log(-g),np.log(_x)) + 1. - 4*np.pi*_p*_x**3/_m) * _x/_m
+  # Phi - e from Phi below Phi_inf/2 and from Psi above it (no cancellation);
+  # drop energies beyond the table
+  deep = _s <= ln_half
+  ok = np.where(deep,_e < _P[-1],_ec > _Psi[-1])
+  _s,_e,_ec,deep = _s[ok],_e[ok],_ec[ok],deep[ok]
+  _f = np.zeros_like(_e)
+  for i,(e1,ec1) in enumerate(zip(_e,_ec)):
+    if deep[i]:
+      above = _P > e1
+      dPhi = _P[above] - e1
+      d2pdP2_1 = np.interp(np.log(e1),np.log(_P),_d2pdP2)
+    else:
+      above = _Psi < ec1
+      dPhi = ec1 - _Psi[above]
+      d2pdP2_1 = np.interp(np.log(ec1),np.log(_Psi[::-1]),_d2pdP2[::-1])
+    integrand = np.insert(_d2pdP2[above],0,d2pdP2_1)
+    measure = np.insert(np.sqrt(dPhi),0,0.)
+    _f[i] = 1./(np.sqrt(2)*np.pi**2) * simpson(integrand,x=measure)
+  with np.errstate(divide='ignore',invalid='ignore'):
+    out[bound] = np.exp(np.interp(sq,_s,np.log(_f),left=-np.inf,right=-np.inf))
+  return out.reshape(_shape)
 
 def df(E,r_s,rho_s,A,r_c=0.,G=1.,zero_at_inf=False):
   '''
