@@ -367,19 +367,18 @@ def test_min_param_consistency(alpha, c, M, rho_vir):
 # --- 14. phase-space core radius --------------------------------------------
 
 @pytest.mark.parametrize("alpha", ALPHAS)
-@pytest.mark.parametrize("y", [0.0, 0.5, 2.0])
+@pytest.mark.parametrize("y", [0.0, 0.005, 0.5, 2.0])
 def test_rc_from_fmax(alpha, y):
   r_s, rho_s, G = 2.5, 0.4, 4.301e-6
   A = _A(y, r_s, rho_s)
-  prefactor = 3e-5
-  for rc_target in [1e-4, 1e-2]:
-    # f_max for which the phase-space barrier rho r^6 = prefactor/(G^3 f^2)
-    # sits at rc_target, then invert
-    rho = cuspEinasto.density(rc_target * r_s, r_s, rho_s, A, alpha)
-    fmax = np.sqrt(prefactor / (G ** 3 * rho * (rc_target * r_s) ** 6))
-    r_c = cuspEinasto.rc_from_fmax(fmax, r_s, rho_s, A, alpha, G=G,
-                                   prefactor=prefactor)
-    assert np.isclose(r_c, rc_target * r_s, rtol=1e-8)
+  for fmax in [1e10, 1e14, 1e18]:
+    # the maximum of the cored distribution function (at the bottom of the
+    # potential) is f_max
+    r_c = cuspEinasto.rc_from_fmax(fmax, r_s, rho_s, A, alpha, G=G)
+    assert 0. < r_c < r_s
+    E = cuspEinasto.potential(1e-3 * r_c, r_s, rho_s, A, alpha, r_c=r_c, G=G)
+    f = cuspEinasto.df(E, r_s, rho_s, A, alpha, r_c=r_c, G=G)
+    assert np.isclose(f, fmax, rtol=1e-3), (r_c / r_s, f / fmax)
 
 
 # --- 15. phase-space core ---------------------------------------------------

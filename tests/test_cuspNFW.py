@@ -245,3 +245,19 @@ def test_min_param_consistency(c, M, rho_vir):
     cuspNFW.scale_from_c(c, M, A_bad, rho_vir)
   r_s, rho_s = cuspNFW.scale_from_c(c, M, A_bad, rho_vir, cmin_error=False)
   assert np.isclose(A_bad / (rho_s * r_s ** 1.5), 1.0, rtol=1e-9)
+
+
+# --- 11. phase-space core radius --------------------------------------------
+
+@pytest.mark.parametrize("y", [0.0, 0.03, 0.5, 1.0])
+def test_rc_from_fmax(y):
+  r_s, rho_s, G = 2.5, 0.4, 4.301e-6
+  A = _A(y, r_s, rho_s)
+  for fmax in [1e10, 1e14, 1e18]:
+    # the maximum of the cored distribution function (at the bottom of the
+    # potential) is f_max
+    r_c = cuspNFW.rc_from_fmax(fmax, r_s, rho_s, A, G=G)
+    assert 0. < r_c < r_s
+    E = cuspNFW.potential(1e-3 * r_c, r_s, rho_s, A, r_c=r_c, G=G)
+    f = cuspNFW.df(E, r_s, rho_s, A, r_c=r_c, G=G)
+    assert np.isclose(f, fmax, rtol=1e-3), (r_c / r_s, f / fmax)

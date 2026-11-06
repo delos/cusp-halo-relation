@@ -335,6 +335,12 @@ def potential(r,r_s,rho_s,A,alpha,r_c=0.,G=1.,zero_at_inf=False):
 
 # distribution function
 
+def __d2rho_dPhi2(_x,_p,_m,g):
+  # d2rho/dPhi2 on a radial table, g = dln(rho)/dln(x)
+  # (differencing ln(-drho/dPhi) whole; expanding it cancels inside a core)
+  _dpdP = _p*g*_x/_m # dPhi/dx = M/x^2
+  return _dpdP * np.gradient(np.log(-_dpdP),np.log(_x)) * _x/_m
+
 def __df(e,y,alpha,z=0.,zero_at_inf=False):
   # energy lattice in s(e) = ln e below Phi_inf/2 and -ln(Phi_inf-e) above it
   _shape = np.shape(e)
@@ -374,9 +380,7 @@ def __df(e,y,alpha,z=0.,zero_at_inf=False):
   # Eddington's formula in its integrated-by-parts form,
   # f = 1/(sqrt(8) pi^2) int_e d2rho/dPhi2 dPhi/sqrt(Phi-e), which avoids
   # differencing in e (inaccurate near the bottom of a cored potential)
-  g = __density_slope(_x,y,alpha,z)
-  _dpdP = _p*g*_x/_m # dPhi/dx = M/x^2
-  _d2pdP2 = _dpdP * (g + np.gradient(np.log(-g),np.log(_x)) + 1. - 4*np.pi*_p*_x**3/_m) * _x/_m
+  _d2pdP2 = __d2rho_dPhi2(_x,_p,_m,__density_slope(_x,y,alpha,z))
   # Phi - e from Phi below Phi_inf/2 and from Psi above it (no cancellation);
   # drop energies beyond the table
   deep = _s <= ln_half
@@ -618,9 +622,19 @@ def c_min(M,A,rho_vir,alpha):
 
 # phase-space core
 
-def rc_from_fmax(fmax,r_s,rho_s,A,alpha,G=1.,prefactor=3e-5):
+def __f0(y,alpha,z):
+  # f at the bottom of the cored potential (e = 0); xmin << z because the
+  # power law below the table is only O(xmin^2/z^2) accurate
+  _x,_p,_m,_P = __table(z/1e4,max(__xfar(alpha),1e3*z),y,alpha,z,step=1.01)
+  _d2pdP2 = __d2rho_dPhi2(_x,_p,_m,__density_slope(_x,y,alpha,z))
+  # d2rho/dPhi2 is constant below the second point (the first is one-sided)
+  _u = np.sqrt(_P[1:])
+  return 1./(np.sqrt(2)*np.pi**2) * (_d2pdP2[1]*_u[0] + simpson(_d2pdP2[1:],x=_u))
+
+def rc_from_fmax(fmax,r_s,rho_s,A,alpha,G=1.):
   '''
-  Evaluate the core radius from phase-space conservation.
+  Evaluate the core radius from phase-space conservation: the maximum of the
+  cored distribution function (at the bottom of the potential) is f_max.
   
   Parameters:
     
@@ -645,22 +659,18 @@ def rc_from_fmax(fmax,r_s,rho_s,A,alpha,G=1.,prefactor=3e-5):
       Gravitational constant. If not specified, then we assume the first
       argument is G^1.5 f_max, which has dimensions of
       1/sqrt(mass*length^3). The result does not depend on G otherwise.
-    
-    prefactor: float
-      Prefactor in the "phase-space barrier" from arXiv:2207.05082. Default is
-      prefactor=3e-5 (see appendix C of arXiv:2207.05082).
   
   Returns:
     
     r_c: float
-      Core radius.
+      Core radius (0 or inf if it would lie outside 1e-60 r_s to 10 r_s).
   '''
-  target = prefactor * G**-3 * fmax**-2 / (rho_s * r_s**6)
+  target = np.log(G**1.5 * fmax * r_s**3 * rho_s**0.5)
   y = A / (rho_s * r_s**1.5)
-  fun = lambda lnx: np.log(__density(np.exp(lnx), y, alpha) * np.exp(6*lnx) / target)
-  # rho r^6 turns over beyond x = 3^(1/alpha)
+  fun = lambda lnz: np.log(__f0(y, alpha, np.exp(lnz))) - target
+  # f0 falls monotonically with the core radius
   try:
-    lnx = root_scalar(fun, bracket=[-100., np.log(3.)/alpha]).root
+    lnz = root_scalar(fun, bracket=[np.log(1e-60), np.log(10.)], xtol=1e-6).root
   except ValueError:
-    return 0. if fun(0.) > 0. else np.inf
-  return np.exp(lnx) * r_s
+    return 0. if fun(np.log(1e-60)) < 0. else np.inf
+  return np.exp(lnz) * r_s
